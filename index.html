@@ -1667,6 +1667,8 @@ const REGIONS=[
 ];
 const MATS={bars:{name:'Steel bars',short:'Bars',color:'#a9b4bd'},crystal:{name:'Ice crystals',short:'Crystals',color:'#8fd3e8'},obsidian:{name:'Obsidian',short:'Obsidian',color:'#b06a9a'},pearl:{name:'Deep pearls',short:'Pearls',color:'#d8d0f0'}};
 const MIL=[10,25,50,100,150,200,300,400,500];
+/* every-shaft milestones: when every shaft of a mine (at least the first three) reaches a MIL level, all its shafts dig ×2.
+   Kept for the claim once reached, so sinking a new shaft never takes one away. Keeps the shallow shafts worth levelling */
 const R_SHAFT=1.2,R_E=1.15,R_W=1.15,BASE_CYCLE=4,OT_CD=900,OFFLINE_CAP=86400,STOCK_TRIPS=20,CLAIM_MIN=1e7;
 const RANK_S=[1,1,2,4],RANK_EW=[1,1,1.5,2.5],RANK_NAME=['None','Manager','Senior','Chief'],RANK_COST=[0,1,250,25000];
 const SPEC={
@@ -1689,6 +1691,7 @@ const LAB=[
  {id:'grade',name:'Ore grading',desc:'Ore sells for 10% more per level',max:10,c0:2e5,r:40},
  {id:'oil',name:'Lamp oil',desc:'Manager abilities recharge 10% faster per level',max:5,c0:2e5,r:60},
  {id:'flux',name:'Refinery flux',desc:'The refinery makes 25% more per level',max:5,c0:1e5,r:40},
+ {id:'seams',name:'Reworked seams',desc:'The four shallowest shafts dig twice as much per level',max:6,c0:1e5,r:60},
  {id:'insul',name:'Insulated deposits',desc:'Deposits freeze 10% slower per level (freezing can be at most halved)',max:5,c0:5e4,r:30,only:'freeze'},
  {id:'sinks',name:'Heat sinks',desc:'Shafts heat up 9% slower per level (heating can be cut by at most 45%)',max:5,c0:5e4,r:30,only:'heat'},
  {id:'ballast',name:'Ballast tanks',desc:'The elevator can make 1 more stop per level',max:2,c0:2e5,r:200,only:'route'},
@@ -1783,7 +1786,7 @@ function emit(t,d){for(const f of subs){try{f(t,d||{})}catch(e){console.error(e)
 const newShaft=()=>({lvl:1,dep:0,mgr:0,spec:'a',t:-1,ab:{until:0,ready:0},cave:0,heat:0,hot:0,route:1});
 const newStage=()=>({lvl:1,mgr:0,spec:'a',t:-1,load:0,ab:{until:0,ready:0}});
 function freshRun(){return{cash:0,run:0,shafts:[newShaft()],E:Object.assign(newStage(),{plan:null,k:0,wait:0}),W:Object.assign(newStage(),{T:4}),stock:0,
-  lab:{bits:0,blast:0,cage:0,conv:0,grade:0,oil:0,flux:0,insul:0,sinks:0,ballast:0},doct:null,ref:0,
+  lab:{bits:0,blast:0,cage:0,conv:0,grade:0,oil:0,flux:0,insul:0,sinks:0,ballast:0,seams:0},doct:null,ref:0,allMil:0,
   rs:{earned:0,dug:0,sold:0,played:0,missions:0,events:0,peak:0,lost:0,mat:0}}}
 function newMine(i){return Object.assign({i,open:i===0,ingots:0,claims:0,split:0,best:1,mastered:0,life:0},freshRun())}
 function fresh(){return{v:3,clock:0,cur:0,mines:REGIONS.map((_,i)=>newMine(i)),total:0,
@@ -1807,6 +1810,8 @@ const keyName=(m,k)=>k==='e'?'elevator':k==='w'?'warehouse':regOf(m).ores[+k.sli
 function perk(id){for(let t=0;t<PERKS.length;t++){const p=S.perks[t];if(p&&PERKS[t][p].id===id&&totalIngots()>=PERKS[t].need)return true}return false}
 const eq=id=>S.slots.includes(id)?(S.equip[id]||0):0;
 const nextMil=L=>{for(const x of MIL)if(L<x)return x;return null};
+function allWeakest(m){const n=Math.max(3,m.shafts.length);let lo=0,lv=m.shafts[0].lvl;for(let i=1;i<n;i++){const L=m.shafts[i]?m.shafts[i].lvl:0;if(L<lv){lo=i;lv=L}}return{i:lo,lvl:lv}}
+function allMilCheck(m){const lv=allWeakest(m).lvl;let got=0;while(m.allMil<MIL.length&&lv>=MIL[m.allMil]){m.allMil++;got++}return got}
 function milMult(L){const f=perk('lode')?2.5:2;let m=1;for(const x of MIL)if(L>=x)m*=f;return m}
 const spd=L=>Math.min(3,1+(L-1)*.02);
 const coffee=st=>!st&&S.clock<S.buff.coffee?2:1;
@@ -1818,7 +1823,7 @@ const coreStages=()=>S.proj.core||0;
 
 /* ---------- production numbers (one mine) ---------- */
 function shaftOut(m,i,st){const s=m.shafts[i],r=regOf(m);
-  let p=5*Math.pow(12,i)*s.lvl*milMult(s.lvl)*RANK_S[s.mgr]*specMul(m,s)*(1+.25*m.lab.bits)*(1+.15*eq('drill'))*r.out;
+  let p=5*Math.pow(12,i)*s.lvl*milMult(s.lvl)*Math.pow(2,(m.allMil|0)+(i<4?m.lab.seams|0:0))*RANK_S[s.mgr]*specMul(m,s)*(1+.25*m.lab.bits)*(1+.15*eq('drill'))*r.out;
   if(!st){if(s.cave)return 0;if(abOn(s,st))p*=4;if(on(S.ot))p*=m.doct==='rush'?2.5:2}return p}
 const cycle=(m,st)=>BASE_CYCLE/((1+.15*m.lab.blast)*coffee(st));
 const eSpeed=(m,st)=>spd(m.E.lvl)*(1+.15*m.lab.cage)*(1+.12*eq('winch'))*coffee(st)*(abOn(m.E,st)?3:1);
@@ -1957,7 +1962,8 @@ const act={
   send(k,mi){const m=M(mi);if(k==='e'){if(m.E.t!==-1||m.E.mgr)return false;if(!routeList(m).length)return'route';startElev(m);return true}
     if(m.W.t>=0||m.W.mgr)return false;if(m.stock<=0)return'empty';startWh(m);return true},
   up(k,mi){const m=M(mi),s=stageOf(m,k);if(!s)return false;const u=upInfo(m,k);if(!(m.cash>=u.cost))return false;m.cash-=u.cost;const old=s.lvl;s.lvl+=u.k;S.st.upgrades+=u.k;
-    let mil=0;if(k[0]==='s')for(const x of MIL)if(old<x&&s.lvl>=x)mil++;emit('upgrade',{mi:m.i,k,levels:u.k,mil,lvl:s.lvl});return true},
+    let mil=0;if(k[0]==='s')for(const x of MIL)if(old<x&&s.lvl>=x)mil++;emit('upgrade',{mi:m.i,k,levels:u.k,mil,lvl:s.lvl});
+    const all=k[0]==='s'?allMilCheck(m):0;if(all)emit('allmil',{mi:m.i,got:all,at:MIL[m.allMil-1]});return true},
   hire(k,spec,mi){const m=M(mi),s=stageOf(m,k);if(!s||s.mgr)return false;const c=mgrCost(m,k,1);if(!(m.cash>=c))return false;m.cash-=c;s.mgr=1;s.spec=spec==='p'?'p':'a';S.st.hires++;emit('hire',{mi:m.i,k});return true},
   retrain(k,mi){const m=M(mi),s=stageOf(m,k);if(!s||!s.mgr)return false;const c=mgrCost(m,k,1);if(!(m.cash>=c))return false;m.cash-=c;s.spec=s.spec==='a'?'p':'a';s.ab.until=0;emit('retrain',{mi:m.i,k});return true},
   promote(k,mi){const m=M(mi),s=stageOf(m,k);if(!S.feat.ranks||!s||s.mgr<1||s.mgr>=3)return false;const c=mgrCost(m,k,s.mgr+1);if(!(m.cash>=c))return false;m.cash-=c;s.mgr++;emit('promote',{mi:m.i,k,rank:s.mgr});return true},
@@ -2159,7 +2165,7 @@ api.rng=Math.random;
 Object.assign(api,{REGIONS,MATS,MIL,LAB,PERKS,ACH,ITEMS,SPEC,DOCT,EQUIP,PROJ,RANK_NAME,RANK_S,RANK_EW,CLAIM_MIN,act,step,offline,awaySeconds,load,
   fresh:()=>{S=fresh();refill();return S},serialize,state:()=>S,on:f=>subs.push(f),money,nice,
   cur,regOf,rates,value,stageOf,keyName,keysOf,upInfo,mgrCost,unlockCost,labCost,refCost,claimGain,nextIngotAt,ingotAt,eCap,wCap,wTrip,eRound,cycle,shaftOut,eRate,
-  nextMil,elevPos,abDur,abCd,otDur,isOn:o=>on(o),missionProg,missionText,dailyReady,offMult,itemCount,perk,incomeNow,achCount,stockCap,depCap,maxStops,routeList,
+  nextMil,allWeakest,MIL,elevPos,abDur,abCd,otDur,isOn:o=>on(o),missionProg,missionText,dailyReady,offMult,itemCount,perk,incomeNow,achCount,stockCap,depCap,maxStops,routeList,
   upgradeGain,bestShaftUpgrade,loadInfo,  freezeK,freezeLoss,heatUptime,heatCut,freezeCut,matRate,equipCost,projCost,canPay,slotCount,eqMax,offlineCap,projDone,totalIngots,eq,clock:()=>S.clock});
 return api;
 })();
@@ -2217,7 +2223,7 @@ const Industrialist = (() => {
       `<div class="im-flow"><div class="fs" id="imf-s"><span>Shafts</span><b></b><i><u></u></i></div><em>›</em>` +
       `<div class="fs" id="imf-e"><span>Elevator</span><b></b><i><u></u></i></div><em>›</em>` +
       `<div class="fs" id="imf-w"><span>Warehouse</span><b></b><i><u></u></i></div></div>` +
-      `<p class="im-idle" id="im-idle"></p>` +
+      `<p class="im-idle" id="im-idle"></p><p class="allms" id="im-all"></p>` +
       `<div class="im-tools"><div class="modes" id="im-buy">${['1', '10', 'max'].map((x) => `<button data-a="ibuy" data-i="${x}">${x === 'max' ? 'Max' : '×' + x}</button>`).join('')}</div>` +
       `<button class="im-pill" id="im-ot" data-a="overtime" data-i="0" hidden></button><button class="im-pill" id="im-ab" data-a="abilAll" data-i="0" hidden></button></div>` +
       `<div class="im-sup" id="im-sup" hidden></div>` +
@@ -2236,14 +2242,14 @@ const Industrialist = (() => {
       `<details class="fold" data-fold="ind-guide"><summary data-a="fold" data-i="ind-guide">Field guide</summary>` +
       `<p>Shafts dig ore into their deposits. The elevator loads the deposits from the top down and brings the ore up to the stockpile, and the warehouse hauls the stockpile to market. Income is set by the slowest of the three, shown in the strip at the top.</p>` +
       `<p>If the stockpile is full, the elevator waits at the top until the warehouse makes room. Tap a stage’s bar to run it once by hand; a manager runs it on its own, offline too.</p>` +
-      `<p>Shaft levels 10, 25, 50, 100, 150, 200, 300, 400 and 500 double that shaft’s output. Every mine keeps running while you watch another; events only happen in the mine on screen.</p></details>`;
+      `<p>Shaft levels 10, 25, 50, 100, 150, 200, 300, 400 and 500 double that shaft’s output. When every shaft in a mine (at least the first three) reaches one of those levels, all its shafts dig ×2 for the rest of the claim. Every mine keeps running while you watch another; events only happen in the mine on screen.</p></details>`;
     const stageRefs = (key, root) => ({ key, root, chip: root.querySelector('.im-chip'), lv: root.querySelector('.im-lv'), bar: root.querySelector('.im-bar'), fill: root.querySelector('.im-bar > i'), txt: root.querySelector('.im-bar > span'), up: root.querySelector('[data-a="up"]'), mb: root.querySelector('[data-a="mgrbtn"]') });
     R.e = stageRefs('e', q('#im-e'));
     R.e.txt = q('.im-send > span');
     R.e.val = q('.im-send > b');
     R.e.fill = q('.im-send > i');
     R.w = stageRefs('w', q('#im-wh'));
-    for (const id of ['im-reg', 'im-idle', 'im-buy', 'im-ot', 'im-ab', 'im-sup', 'im-wh', 'im-winfo', 'im-stock', 'im-meter', 'im-ref', 'im-geode', 'im-track', 'im-cable', 'im-car', 'im-load', 'im-einfo', 'im-shafts', 'im-unl', 'im-top']) R[id] = q('#' + id);
+    for (const id of ['im-reg', 'im-idle', 'im-buy', 'im-ot', 'im-ab', 'im-sup', 'im-wh', 'im-winfo', 'im-stock', 'im-meter', 'im-ref', 'im-geode', 'im-track', 'im-cable', 'im-car', 'im-load', 'im-einfo', 'im-shafts', 'im-unl', 'im-top', 'im-all']) R[id] = q('#' + id);
     // a sheet for choices that need more room than a button: hiring, a manager's details, crates
     const sh = document.createElement('div');
     sh.id = 'indSheet';
@@ -2313,6 +2319,9 @@ const Industrialist = (() => {
       fillTo(el.children[2].firstChild, Math.max(3, (v / mx) * 100));
     });
     const idle = G.rates(m, true, true);
+    const wk = G.allWeakest(m), goal = G.MIL[m.allMil], so = m.allMil ? ` · ×${num(2 ** m.allMil)} so far` : '';
+    R['im-all'].hidden = m.shafts.length < 3; // it counts the first three shafts, so it waits until they're sunk
+    setHTML(R['im-all'], goal ? `Every shaft at Lv ${goal}: <b>all shafts ×2</b> <i>(lowest: ${reg.ores[wk.i][0]} Lv ${wk.lvl}${so})</i>` : `Every every-shaft milestone reached: <b>all shafts ×${num(2 ** m.allMil)}</b>`);
     setText(R['im-idle'], `Ore ${usd(G.value(m, false))} each · offline ${usd(idle.income * G.offMult())}/s` + (m.ref && m.split ? ` · ${Math.round(m.split * 100)}% refined` : ''));
     const sb = r.bn === 'Shafts' ? G.bestShaftUpgrade(m) : null, tagKey = r.bn === 'Shafts' ? sb && sb.k : r.bn === 'Elevator' ? 'e' : 'w';
     // the mine's own rule: one live line, tap for the explanation
@@ -2688,6 +2697,9 @@ const Industrialist = (() => {
         }
         break;
       }
+      case 'allmil':
+        toast(`Every shaft at Lv ${d.at}: all shafts ×${2 ** d.got}`);
+        break;
       case 'hire': {
         const rr = same && refsOf(d.k);
         if (rr) Polish.unlock(rr.root, '#a3c4a0');
@@ -3154,6 +3166,10 @@ const Capitalist = (() => {
   // up to the number). Level milestones count every mine you own, so each new mine helps instead of holding you back
   const SPEED_MILESTONES = [25, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
   const LEVEL_MILESTONES = [1000, 2500, 5000, 7500, 10000, 15000, 20000, 25000, 30000, 35000];
+  // Every-mine milestones (×2 profit each): every mine up to your newest (at least the first five; the Prime Crucible
+  // doesn't count) has this many levels. Kept for the rest of the run once reached, so opening a new mine never takes one
+  // away; it only sets the bar for the next. This is what keeps the cheap early mines worth levelling
+  const ALL_MILESTONES = [25, 50, 100, 150, 200, 300, 400, 500, 600, 800, 1000];
 
   // Mine upgrades: 10 per mine, bought in order. [label, profit ×, speed ×, price as a multiple of the mine's base cost]
   const UPGRADE_STEPS = [
@@ -3195,6 +3211,7 @@ const Capitalist = (() => {
     ['aqua-regia', 'Aqua Regia', 'Profit ×3', 3e08, { profit: 3 }],
     ['minecart-rails', 'Minecart Rails', 'All cycles 50% faster', 1.2e09, { speed: 1.5 }],
     ['alloy-mastery', 'Alloy Mastery', 'Mine levels 10% cheaper again', 5e09, { price: 0.9 }],
+    ['reopened-seams', 'Reopened Seams', 'The first 10 mines: profit ×10', 1e10, { early: [10, 10] }],
     ['alembic-arrays', 'Alembic Arrays', 'Research Labs ×3 Arcana', 2e10, { arcana: 3 }],
     ['nigredo', 'Nigredo', 'Profit ×4', 8e10, { profit: 4 }],
     ['quicksilver-gears', 'Quicksilver Gears', 'All cycles 2× faster', 3e11, { speed: 2 }],
@@ -3204,10 +3221,12 @@ const Capitalist = (() => {
     ['earthshaper-contracts', 'Earthshaper Contracts', 'Mine levels 20% cheaper', 8e13, { price: 0.8 }],
     ['grand-grimoire', 'Grand Grimoire', 'Research Labs ×5 Arcana', 3e14, { arcana: 5 }],
     ['citrinitas', 'Citrinitas', 'Profit ×5', 1.2e15, { profit: 5 }],
+    ['ancestral-veins', 'Ancestral Veins', 'The first 20 mines: profit ×25', 2.5e15, { early: [20, 25] }],
     ['void-resonance', 'Void Resonance', 'Dark Matter bonus +50%', 5e15, { dmBonus: 0.5 }],
     ['golem-academy', 'Golem Academy', 'Golems 75% cheaper', 2e16, { golemPrice: 0.25 }],
     ['rubedo', 'Rubedo', 'Profit ×8', 8e16, { profit: 8 }],
     ['emerald-tablet', 'Emerald Tablet', 'Profit ×10', 3e17, { profit: 10 }],
+    ['deep-memory', 'Deep Memory', 'The first 10 mines: profit ×100', 6e17, { early: [10, 100] }],
     ['clockwork-of-ages', 'Clockwork of Ages', 'All cycles 2.5× faster', 1.2e18, { speed: 2.5 }],
     ['prima-materia', 'Prima Materia', 'Profit ×12', 5e18, { profit: 12 }],
   ].map(upgradeDef);
@@ -3219,10 +3238,12 @@ const Capitalist = (() => {
     ['umbral-seal', 'Umbral Seal', 'Profit ×4', 2e5, { profit: 4 }],
     ['deep-vault-labs', 'Deep Vault Labs', 'Research Labs ×2 Arcana', 4e6, { arcana: 2 }],
     ['black-salt', 'Black Salt', 'Profit ×5', 1e8, { profit: 5 }],
+    ['echoing-depths', 'Echoing Depths', 'The first 10 mines: profit ×25', 1e9, { early: [10, 25] }],
     ['void-pulse', 'Void Pulse', 'All cycles 2× faster', 3e9, { speed: 2 }],
     ['abyssal-labs', 'Abyssal Labs', 'Research Labs ×3 Arcana', 1e11, { arcana: 3 }],
     ['midas-touch', 'Midas Touch', 'Profit ×7', 3e12, { profit: 7 }],
     ['dark-bloom', 'Dark Bloom', 'Profit ×10', 1e14, { profit: 10 }],
+    ['old-gods', 'The Old Gods', 'The first 20 mines: profit ×50', 1e15, { early: [20, 50] }],
   ].map(upgradeDef);
   // Paid in Elder Runes (second prestige). Spending runes never lowers their bonus
   const RUNE_UPGRADES = [
@@ -3368,6 +3389,7 @@ const Capitalist = (() => {
       lifetimeEarned: 0, // gold earned since the last ascension (Dark Matter is based on this)
       totalEarned: 0, // gold earned ever
       level: zeros(), // per unit (mines, then the Research Lab)
+      allMs: 0, // every-mine milestones reached this run
       golems: zeros(),
       upgrades: zeros(), // enchantments bought per mine
       running: zeros(),
@@ -3445,12 +3467,16 @@ const Capitalist = (() => {
 
   function refresh(now = Date.now()) {
     const m = { profit: 1, speed: 1, price: 1, golemPrice: 1, arcana: 1, dmGain: 1, essence: 1, dmBonus: 0, offline: 0.5, questBonus: 0.05, runeBonus: 0.1, startCash: 0, autoGolems: 0, boostHours: 0.5, keepDmUpgrades: 0, catalystPower: 0.1 };
+    m.early = Array(MINE_COUNT).fill(1); // catch-up multipliers for the earliest mines
     const sources = [[DM_UPGRADES, S.dmUpgrades], [RUNE_UPGRADES, S.runeUpgrades], [TRIALS, S.trials]];
     if (!inTrial('silence')) sources.push([RESEARCH, S.research]);
     for (const [list, owned] of sources)
       for (const u of list)
         if (owned[u.id])
-          for (const [k, v] of Object.entries(u.fx)) m[k] = FX_MULTIPLY.includes(k) ? m[k] * v : k === 'dmBonus' ? m[k] + v : Math.max(m[k], v);
+          for (const [k, v] of Object.entries(u.fx)) {
+            if (k === 'early') for (let i = 0; i < v[0]; i++) m.early[i] *= v[1];
+            else m[k] = FX_MULTIPLY.includes(k) ? m[k] * v : k === 'dmBonus' ? m[k] + v : Math.max(m[k], v);
+          }
     if (inTrial('slow-earth')) m.speed /= 10;
     if (inTrial('great-trial')) m.profit /= 1000;
     m.dmPer = 0.02 * (1 + m.dmBonus); // profit per Dark Matter, up to 1,000
@@ -3458,12 +3484,14 @@ const Capitalist = (() => {
     m.minLevel = Math.min(...S.level.slice(0, MINE_COUNT));
     m.totalLevels = S.level.slice(0, MINE_COUNT).reduce((a, b) => a + b, 0);
     m.levelMilestones = LEVEL_MILESTONES.filter((t) => m.totalLevels >= t).length;
+    allMilestoneCheck();
     m.boosted = now < S.boostEndsAt;
     m.mult =
       (1 + (inTrial('dark-fast') ? 0 : dmBonusAt(dmAvailable()))) *
       (1 + m.questBonus * Object.keys(S.quests).length) *
       m.profit *
       2 ** m.levelMilestones *
+      2 ** S.allMs *
       (1 + m.runeBonus * runePower()) *
       (1 + 0.01 * Object.keys(S.achievements).length) *
       (m.boosted ? boostPower() : 1) *
@@ -3473,6 +3501,21 @@ const Capitalist = (() => {
   }
 
   // ===== Economy =====
+  // The mines the every-mine milestones look at, and the lowest of them (the one holding the next milestone back)
+  function allMineWeakest() {
+    let top = 4;
+    for (let i = 0; i < CRUCIBLE; i++) if (level(i)) top = Math.max(top, i);
+    let lo = 0;
+    for (let i = 1; i <= top; i++) if (level(i) < level(lo)) lo = i;
+    return lo;
+  }
+  // Returns how many milestones this call reached (they stay for the run)
+  function allMilestoneCheck() {
+    const lo = level(allMineWeakest());
+    let got = 0;
+    while (S.allMs < ALL_MILESTONES.length && lo >= ALL_MILESTONES[S.allMs]) S.allMs++, got++;
+    return got;
+  }
   const dmBonusAt = (n) => dmBonusFor(M.dmPer, n);
   const speedMilestones = (i) => SPEED_MILESTONES.filter((t) => level(i) >= t).length;
   const speed = (i) => 2 ** speedMilestones(i) * M.speed * UPGRADE_SPEED[S.upgrades[i]];
@@ -3481,7 +3524,7 @@ const Capitalist = (() => {
   const payout = (i) =>
     i === LAB
       ? UNITS[i].profit * level(i) * M.arcana * M.mult ** 0.2
-      : UNITS[i].profit * level(i) * UPGRADE_PROFIT[S.upgrades[i]] * M.mult;
+      : UNITS[i].profit * level(i) * UPGRADE_PROFIT[S.upgrades[i]] * M.early[i] * M.mult;
   // Cost of k more levels, and how many levels a budget buys (geometric series)
   const growth = (i) => UNITS[i].growth ** (inTrial('thrift') ? 2 : 1);
   function buyCost(i, k) {
@@ -3624,6 +3667,11 @@ const Capitalist = (() => {
       S.level[i] += k;
       if (i === CRUCIBLE) S.crucibleBuilt = true;
       if (speedMilestones(i) > before) milestoneFlash(i);
+      const got = allMilestoneCheck();
+      if (got) {
+        refresh();
+        toast(`Every mine at ${plain(ALL_MILESTONES[S.allMs - 1])} levels: all profit ×${2 ** got}`);
+      }
     },
     summon(v) {
       const i = +v;
@@ -3837,8 +3885,14 @@ const Capitalist = (() => {
     const t = TRIALS.find((x) => x.id === S.trial);
     if (t) return `${t.name}: ${t.handicap.toLowerCase()} · <b>${money(S.runEarned)} / ${money(t.goal)}</b>`;
     const next = LEVEL_MILESTONES.find((n) => M.totalLevels < n);
-    if (!next) return `Every level milestone reached: <b>×${plain(2 ** LEVEL_MILESTONES.length)} profit</b>`;
-    return `Mine levels ${plain(M.totalLevels)} / ${plain(next)}: <b>×2 profit</b> <i>(×${plain(2 ** M.levelMilestones)} so far)</i>`;
+    const total = next
+      ? `Mine levels ${plain(M.totalLevels)} / ${plain(next)}: <b>×2 profit</b> <i>(×${plain(2 ** M.levelMilestones)} so far)</i>`
+      : `Every level milestone reached: <b>×${plain(2 ** LEVEL_MILESTONES.length)} profit</b>`;
+    const goal = ALL_MILESTONES[S.allMs], lo = allMineWeakest();
+    const every = goal
+      ? `Every mine at ${plain(goal)} levels: <b>×2 profit</b> <i>(lowest: ${UNITS[lo].name} ${plain(level(lo))}${S.allMs ? ` · ×${plain(2 ** S.allMs)} so far` : ''})</i>`
+      : `Every every-mine milestone reached: <b>×${plain(2 ** S.allMs)} profit</b>`;
+    return total + '<br>' + every;
   }
   function renderMines() {
     setHTML($('allms'), milestoneLine());
@@ -4137,6 +4191,11 @@ const Capitalist = (() => {
     };
     if (fx.profit) return gain(fx.profit);
     if (fx.speed) return gain(fx.speed);
+    if (fx.early) {
+      let g = 0;
+      for (let i = 0; i < fx.early[0]; i++) if (level(i)) g += payout(i) / cycleTime(i);
+      return g > 0 ? `Now: about +${money(g * (fx.early[1] * dmLoss - 1))}/s` : '';
+    }
     if (fx.price) {
       const i = DISPLAY_ORDER.find((j) => isVisible(j) && !level(j));
       return i !== undefined ? `Now: the ${UNITS[i].name} would cost ${money(buyCost(i, 1) * fx.price)}` : '';
@@ -4168,7 +4227,7 @@ const Capitalist = (() => {
     { id: 'golems', when: () => S.cash >= golemCost(0) || golemCount() > 0, tab: 'forge', title: 'Golems', text: 'A golem works a mine for you, forever, and keeps it earning while you’re away. Summon them on the <b>Forge</b> tab.' },
     { id: 'enchant', when: () => upgradesBought() > 0 || (canEnchant(0) && S.cash >= upgradeCost(0)), tab: 'forge', title: 'Enchantments', text: 'Each mine takes 10 enchantments, cast in order: bigger profit and faster cycles. They’re on the <b>Forge</b> tab, below the golems.' },
     { id: 'research', when: () => !locked('research'), tab: 'research', title: 'Quests and research', text: '<b>Quests</b> pay Arcana and add profit for good. The <b>Research Lab</b> brews more Arcana. Spend it on research, which is never lost.' },
-    { id: 'milestones', when: () => M.totalLevels >= 600, tab: 'mines', title: 'Level milestones', text: 'Every mine’s levels add up. At 1,000, 2,500, 5,000 and more, <b>all</b> profit doubles: the line above your mines shows the next one.' },
+    { id: 'milestones', when: () => M.totalLevels >= 600, tab: 'mines', title: 'Level milestones', text: 'Every mine’s levels add up. At 1,000, 2,500, 5,000 and more, <b>all</b> profit doubles. Profit also doubles each time <b>every</b> mine reaches 25, 50, 100 levels and more, so keep your early mines up. The lines above your mines show the next of each.' },
     { id: 'transmute', when: () => !locked('transmute'), tab: 'transmute', title: 'Transmuting', text: `At ${money(earningsForDm(1))} earned you can <b>transmute</b>: your mines and gold melt down into <b>Dark Matter</b>, and each one adds +2% profit to every run after. You rebuild much faster, and you keep research, Arcana and quests.` },
     { id: 'dark-matter', when: () => dmAvailable() > 0, tab: 'transmute', title: 'Dark Matter', text: 'Unspent Dark Matter raises your profit. Upgrades on the Transmute tab are stronger, but spending lowers the bonus, so buy the ones that pay off.' },
     { id: 'ascend', when: () => S.darkMatter >= ASCEND_AT / 2 || S.runes > 0, tab: 'transmute', title: 'Ascension', text: `At ${plain(ASCEND_AT)} Dark Matter you can <b>ascend</b>: a bigger reset that clears Dark Matter too, for <b>Elder Runes</b> that boost profit and Dark Matter for good.` },
@@ -4248,6 +4307,10 @@ const Communist = (() => {
   const TIER_PRICE_STEP = 150;
   const PRICE_GROWTH = [1.07, 1.09, 1.11, 1.13, 1.15, 1.17]; // by tier
   const LOWER_NEEDED = 10; // producers of the tier below used up by each purchase
+  // Every-tier milestones: once you've bought this many of every producer in an industry's chain (this run), that
+  // industry's output ×3 (more with research). Kept for the run once reached, so a newly opened greatest producer never
+  // takes one away. This is what keeps buying the cheap lower producers worthwhile after the chain builds them for you
+  const TIER_MILESTONES = [10, 25, 50, 100, 150, 200, 300, 400, 500];
   // Gold producers above the Panner also need another industry's material: Prospector Camps need Copper, Gold Mines
   // Iron, Assay Guilds Crystal, Royal Mints Mithril
   const GOLD_TIER_MATERIAL = (t) => 15 * 40 ** (t - 1);
@@ -4314,6 +4377,7 @@ const Communist = (() => {
     ['central-planning', 'Central Planning', "Plans' boosts are twice as strong", 8e8, { planPower: 2 }],
     ['clockwork-crews', 'Clockwork Crews', 'Every producer builds 50% faster', 2.5e9, { build: 1.5 }],
     ['assayers-ledger', "Assayer's Ledger", 'Gold prices 20% lower', 8e9, { price: 0.8 }],
+    ['shock-brigades', 'Shock Brigades', 'Every-tier milestones give ×4 instead of ×3', 1.5e10, { tierPower: 4 }],
     ['emerald-tablet', 'Emerald Tablet', 'Every industry ×4', 2.5e10, { out: 4 }],
     ['grand-grimoire', 'Grand Grimoire', 'Research Labs ×3 Arcana', 8e10, { arcana: 3 }],
     ['votive-vessels', 'Votive Vessels', 'Offerings to the crucible count ×2', 2.5e11, { offer: 2 }],
@@ -4323,6 +4387,7 @@ const Communist = (() => {
     ['prima-materia', 'Prima Materia', 'Every industry ×5', 2.5e13, { out: 5 }],
     ['dark-distillery', 'Dark Distillery', 'Dark Matter bonus +67%', 8e13, { dmBonus: 0.67 }],
     ['clockwork-of-ages', 'Clockwork of Ages', 'Every industry ×8', 2.5e14, { out: 8 }],
+    ['hero-of-labor', 'Heroes of Labor', 'Every-tier milestones give ×6 instead of ×3', 5e14, { tierPower: 6 }],
     ['hermetic-seals', 'Hermetic Seals', 'Offerings to the crucible count ×2 again', 8e14, { offer: 2 }],
     ['world-engine', 'The World Engine', 'Every producer builds 2× faster', 2.5e15, { build: 2 }],
     ['quintessence', 'The Quintessence', 'Every industry ×10', 8e15, { out: 10 }],
@@ -4337,6 +4402,7 @@ const Communist = (() => {
     ['deep-vault-labs', 'Deep Vault Labs', 'Research Labs ×2 Arcana', 8e5, { arcana: 2 }],
     ['midas-touch', 'Midas Touch', 'Gold ×10', 1.6e7, { ind: [0, 10] }],
     ['black-salt', 'Black Salt', 'Every industry ×5', 3e8, { out: 5 }],
+    ['red-banners', 'Red Banners', 'Every-tier milestones give ×5 instead of ×3', 1.5e9, { tierPower: 5 }],
     ['void-pulse', 'Void Pulse', 'Every producer builds 50% faster', 6e9, { build: 1.5 }],
     ['dark-bloom', 'Dark Bloom', 'Every industry ×8', 1.2e11, { out: 8 }],
     ['abyssal-labs', 'Abyssal Labs', 'Research Labs ×3 Arcana', 2.5e12, { arcana: 3 }],
@@ -4443,7 +4509,7 @@ const Communist = (() => {
     ['labs-600', 'Run 600 Research Labs', 2e14, () => S.labs, 600],
     ['dm-1e12', 'Earn 1T Dark Matter', 3e14, () => S.darkMatter, 1e12],
     ['enchant-90', 'Cast all 90 enchantments in one run', 5e14, () => enchantsCast(), 90],
-    ['research-30', 'Complete every research', 1e15, () => researchDone(), 30],
+    ['research-30', 'Complete every research', 1e15, () => researchDone(), RESEARCH.length],
   ].map(questDef);
 
   // ===== Achievements (+1% output each) =====
@@ -4485,6 +4551,7 @@ const Communist = (() => {
       res: [10, 0, 0, 0, 0, 0], // gold and the five materials on hand (enough gold for a first Panner)
       units: grid(), // producers owned (fractions build up between whole ones)
       bought: grid(), // producers bought this run (raises their gold price)
+      tierMs: Array(IND).fill(0), // every-tier milestones reached this run, per industry
       open: [1, 0, 0, 0, 0, 0], // discovered industries
       enchants: Array(IND).fill(0), // enchantments cast per industry, in order
       labs: 0,
@@ -4567,7 +4634,7 @@ const Communist = (() => {
   const crucibleFraction = () => (S.wonAt ? 1 : needed().reduce((a, i) => a + Math.min(1, S.offered[i] / stageGoal(i)), 0) / needed().length);
 
   function refresh(now = Date.now()) {
-    const m = { out: 1, ind: Array(IND).fill(1), build: 1, price: 1, arcana: 1, offer: 1, planPower: 1, dmBonus: 0, questBonus: 0.05, offline: 0.5 };
+    const m = { out: 1, ind: Array(IND).fill(1), build: 1, price: 1, arcana: 1, offer: 1, planPower: 1, dmBonus: 0, questBonus: 0.05, offline: 0.5, tierPower: 3 };
     for (const [list, have] of [[RESEARCH, S.research], [DM_UPGRADES, S.dmUpgrades]])
       for (const u of list)
         if (have[u.id])
@@ -4575,7 +4642,7 @@ const Communist = (() => {
             if (k === 'ind') m.ind[v[0]] *= v[1];
             else if (k === 'ind3') v.forEach(([i, x]) => (m.ind[i] *= x));
             else if (k === 'dmBonus') m.dmBonus += v;
-            else if (k === 'questBonus' || k === 'offline') m[k] = Math.max(m[k], v);
+            else if (k === 'questBonus' || k === 'offline' || k === 'tierPower') m[k] = Math.max(m[k], v);
             else m[k] *= v;
           }
     // this run's plan: its boosts are stronger with Central Planning; its cuts stay the same
@@ -4587,6 +4654,7 @@ const Communist = (() => {
     m.offer *= plan.offer || 1;
     m.dmPer = 0.02 * (1 + m.dmBonus); // output per Dark Matter, up to 1,000
     M = m;
+    for (let i = 0; i < IND; i++) tierMilestoneCheck(i);
     m.boosted = now < S.boostEndsAt;
     m.all =
       m.out *
@@ -4603,7 +4671,21 @@ const Communist = (() => {
 
   // ===== Economy =====
   const dmBonusAt = (n) => dmBonusFor(M.dmPer, n);
-  const industryMult = (i) => ENCHANT_MULT ** S.enchants[i] * M.ind[i] * M.all;
+  const industryMult = (i) => ENCHANT_MULT ** S.enchants[i] * M.tierPower ** S.tierMs[i] * M.ind[i] * M.all;
+  // The producer of industry i bought the fewest times this run (the one holding its next every-tier milestone back)
+  function tierWeakest(i) {
+    let lo = 0;
+    for (let t = 1; t < tierCount(i); t++) if (S.bought[i][t] < S.bought[i][lo]) lo = t;
+    return lo;
+  }
+  // Returns how many milestones this call reached (they stay for the run)
+  function tierMilestoneCheck(i) {
+    if (!S.open[i]) return 0;
+    const lo = S.bought[i][tierWeakest(i)];
+    let got = 0;
+    while (S.tierMs[i] < TIER_MILESTONES.length && lo >= TIER_MILESTONES[S.tierMs[i]]) S.tierMs[i]++, got++;
+    return got;
+  }
   // Producers per second that tier t of industry i is building of tier t-1
   const buildRate = (i, t) => S.units[i][t] * BUILD_RATE * M.build;
   // Price of k more of producer t: the gold part rises with each one bought; the rest is the same every time
@@ -4645,6 +4727,14 @@ const Communist = (() => {
     const p = transmuteReward();
     return p >= 3 && (!S.darkMatter || p >= S.darkMatter);
   };
+
+  const xmult = (n) => (n < 1e5 ? plain(n) : fmt(n)); // ×3, ×81, ×6,561, then ×1.2M
+  // The next every-tier milestone of an industry, under its output line on the Works tab
+  function tierMilestoneLine(i) {
+    const n = S.tierMs[i], goal = TIER_MILESTONES[n], lo = tierWeakest(i), so = n ? ` · ×${xmult(M.tierPower ** n)} so far` : '';
+    if (!goal) return `<small class="allms">Every every-tier milestone reached: <b>×${xmult(M.tierPower ** n)} ${INDUSTRIES[i].name}</b></small>`;
+    return `<small class="allms">Buy ${plain(goal)} of every producer: <b>${INDUSTRIES[i].name} ×${M.tierPower}</b> <i>(fewest: ${plural(INDUSTRIES[i].tiers[lo])} ${plain(S.bought[i][lo])}${so})</i></small>`;
+  }
 
   // ===== Simulation: advance everything by dt seconds (also used for offline time) =====
   function step(dt) {
@@ -4721,6 +4811,8 @@ const Communist = (() => {
       for (const [r, a] of price) take(r, a, i, t);
       S.units[i][t] += k;
       S.bought[i][t] += k;
+      const got = tierMilestoneCheck(i);
+      if (got) toast(`Every ${INDUSTRIES[i].name} producer bought ${plain(TIER_MILESTONES[S.tierMs[i] - 1])}×: ${INDUSTRIES[i].name} ×${xmult(M.tierPower ** got)}`);
     },
     discover(v) {
       const i = +v;
@@ -4953,6 +5045,7 @@ const Communist = (() => {
       h +=
         `<div class="row panel mat" style="--c:${d.color}"><div><b>${icon(d.icon, 18, d.color)} ${d.name} ${live(industry === GOLD ? money(S.res[industry]) : fmt(S.res[industry]))}</b>` +
         `<small>+${live(fmt(M.rate[industry]))} per second · ×${live(fmt(industryMult(industry)))} output</small>` +
+        tierMilestoneLine(industry) +
         (bn && bn.res === industry ? `<small class="bnl">${icon('target', 12)} Short: holding back ${bnList(bn)}</small>` : '') +
         `</div>` +
         (industry === GOLD ? `<button id="panb" data-a="pan" data-i="0">Pan<br>by hand</button>` : '') +
