@@ -24,7 +24,7 @@
 @property --track { syntax: "<color>"; inherits: true; initial-value: #0c0c10 }
 @property --acc { syntax: "<color>"; inherits: true; initial-value: #b4a7e0 }
 :root {
-  --navb: max(5.13px, env(safe-area-inset-bottom, 0px), var(--hb, 0px)); /* space under the tab bar */
+  --navb: max(5.13px, env(safe-area-inset-bottom, 0px)); /* space under the tab bar */
   --sink: 0px; /* iOS bug workaround, set by the script: how far below the fixed-position viewport the real screen bottom is */
   --h: 252; /* hue of the mode's accent: it tints the surfaces very faintly */
   --bg: hsl(var(--h) 11% 7.2%);
@@ -7241,16 +7241,21 @@ const Motes = (() => {
     return h;
   };
   let sunk = -1;
+  // Measured on iPhone 17 Pro Max (956pt tall) in a bad launch: 100dvh = 956, the fixed-position viewport = 860, and
+  // iOS only draws the top 894 (screen minus the 62pt status-bar inset; the rest is a black band nothing can reach).
+  // So the tab bar is lowered to the bottom of the drawn area, never to the physical screen bottom.
   function fitSink() {
     const full = Math.max(probe('top:0;height:100vh;height:100dvh'), probe('top:0;height:100lvh'));
-    const gap = Math.round(full - probe('top:0;bottom:0'));
-    const sink = gap > 2 && gap < 200 ? gap : 0;
+    const fixed = probe('top:0;bottom:0');
+    let sink = 0;
+    if (full - fixed > 2) {
+      const top = probe('top:0;height:env(safe-area-inset-top,0px)');
+      sink = Math.round(Math.min(full - fixed, full - (top > 20 ? top : 62) - fixed));
+      if (sink < 0 || sink > 200) sink = 0;
+    }
     if (sink === sunk) return;
     sunk = sink;
-    const r = document.documentElement.style;
-    r.setProperty('--sink', sink + 'px');
-    // in that state iOS also reports no home-bar inset, so keep the home-bar room by hand on Face ID iPhones
-    r.setProperty('--hb', sink && Math.max(screen.width, screen.height) >= 812 ? '34px' : '0px');
+    document.documentElement.style.setProperty('--sink', sink + 'px');
   }
   function fitEnd() {
     fitSink();
