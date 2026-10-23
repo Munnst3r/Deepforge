@@ -23,7 +23,6 @@
 @property --acc { syntax: "<color>"; inherits: true; initial-value: #b4a7e0 }
 :root {
   --navb: max(5.13px, env(safe-area-inset-bottom, 0px)); /* space under the tab bar */
-  --sink: 0px; /* iOS bug workaround, set by the script: how far below the fixed-position viewport the real screen bottom is */
   --h: 252; /* hue of the mode's accent: it tints the surfaces very faintly */
   --bg: hsl(var(--h) 11% 7.2%);
   --s1: hsl(var(--h) 10% 11%); /* rows */
@@ -69,6 +68,10 @@ html {
      app opens short, behind the status bar), which would otherwise be pure black */
   background: var(--bg) linear-gradient(180deg, var(--bghi), var(--bg) 45%) no-repeat;
 }
+/* WebKit 301108 (iOS 26 Home Screen apps): the viewport can open one status-bar height short, leaving fixed layers
+   (tab bar, overlays) above an undrawn band. The opaque status bar in index.html avoids the bug; this covers an icon
+   still installed with the old translucent one. min() keeps it at 100% when the top inset is 0, so nothing scrolls. */
+@media (display-mode: standalone) { html { min-height: min(100lvh, calc(100% + env(safe-area-inset-top, 0px))) } }
 body { /* the page itself never scrolls; only the area below the top banner does */
   overflow: hidden;
   display: flex; flex-direction: column;
@@ -126,7 +129,7 @@ svg.i { vertical-align: -2.56px; flex: none }
 #hd small i { overflow: hidden; text-overflow: ellipsis; font-style: normal; color: var(--dim); font-weight: 500 }
 #hd b { display: block; margin-top: 2.18px; color: var(--tx); font-size: 13.68px; font-weight: 750; line-height: 1.15; letter-spacing: -.3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 #tn { /* tab name: a small pill just above the tab bar for a moment after switching */
-  position: fixed; left: 50%; bottom: calc(49.59px + var(--navb) - var(--sink)); z-index: 8;
+  position: fixed; left: 50%; bottom: calc(49.59px + var(--navb)); z-index: 8;
   display: flex; align-items: center; gap: 5.09px; padding: 5.09px 9.8px;
   border-radius: 15.39px; background: var(--s2); box-shadow: var(--lift-2);
   font: 600 12.19px/1 var(--serif); white-space: nowrap;
@@ -134,11 +137,11 @@ svg.i { vertical-align: -2.56px; flex: none }
 }
 #tn span { color: var(--tx) }
 #tn.show { opacity: 1; visibility: visible; transform: translate(-50%, 0) }
-body:not(.carded) #tn.show ~ #toast { bottom: calc(92.34px + var(--navb) - var(--sink)) } /* a message steps up while the tab name shows */
+body:not(.carded) #tn.show ~ #toast { bottom: calc(92.34px + var(--navb)) } /* a message steps up while the tab name shows */
 
 /* ---------- Bottom tab bar: the mode's five tabs, and the switch to the other mode at the far right ---------- */
 #nav {
-  position: fixed; bottom: calc(0px - var(--sink)); left: 50%; transform: translateX(-50%); z-index: 7;
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); z-index: 7;
   width: 100%; max-width: 547.2px;
   display: grid; grid-template-columns: repeat(5, 1fr) 1.05fr; gap: 1.45px;
   padding: 3.64px max(5.09px, env(safe-area-inset-right, 0px)) var(--navb) max(5.09px, env(safe-area-inset-left, 0px)); /* the whole home-bar inset is kept clear: on iPhones the screen's rounded corners curve through it, so tabs sitting lower get clipped at the sides. Elsewhere the inset is 0 and only 5.13px remain */
@@ -310,7 +313,7 @@ button.dis, button.big.dis, .row button.dis {
 
 /* ---------- Toast ---------- */
 #toast { /* short message above the tab bar; taps pass through it */
-  position: fixed; left: 50%; bottom: calc(51.3px + var(--navb) - var(--sink)); z-index: 9;
+  position: fixed; left: 50%; bottom: calc(51.3px + var(--navb)); z-index: 9;
   width: max-content; max-width: calc(100% - 27.36px); transform: translate(-50%, 10.26px) scale(.96);
   padding: 6.17px 9.8px; border-radius: 9.4px; background: var(--s2); box-shadow: var(--lift-2);
   color: var(--tx); font-size: 10.16px; font-weight: 500; line-height: 1.45; text-align: center;
@@ -546,7 +549,7 @@ button.dis, button.big.dis, .row button.dis {
 .ind .bn { position: absolute; top: 5.13px; right: 5.13px; width: 5.98px; height: 4.36px; border-radius: 50%; background: var(--amber); font-size: 0 }
 .bnl { display: flex; align-items: center; gap: 2.55px; margin-top: 2.14px; color: var(--amber) !important; font-weight: 600 }
 #card { /* a short explanation the first time a system matters */
-  position: fixed; left: 50%; bottom: calc(47.88px + var(--navb) - var(--sink)); z-index: 8;
+  position: fixed; left: 50%; bottom: calc(47.88px + var(--navb)); z-index: 8;
   width: calc(100% - 20.52px); max-width: 444.6px; transform: translateX(-50%);
   padding: 8.72px 9.8px 7.27px; border-radius: 12.4px; background: var(--s2); box-shadow: var(--lift-2), inset 0 0 0 1px color-mix(in srgb, var(--acc) 30%, transparent);
   color: var(--sub); font-size: 10.56px; line-height: 1.5;
@@ -789,4 +792,3 @@ body.carded #toast { bottom: auto !important; top: calc(env(safe-area-inset-top,
 .im-geode { --cracks: 0 }
 .im-geode::after { content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; opacity: var(--cracks);
   background: linear-gradient(35deg, transparent 47%, rgba(230, 210, 255, .9) 49%, transparent 51%), linear-gradient(-50deg, transparent 46%, rgba(230, 210, 255, .8) 48%, transparent 50%), linear-gradient(100deg, transparent 47%, rgba(230, 210, 255, .7) 49%, transparent 51%) }
-#title, #end, #tut, #swap, #fx, #fxl, #indSheet { bottom: calc(0px - var(--sink)) } /* full-screen layers reach the real bottom too */

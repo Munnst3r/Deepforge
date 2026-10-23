@@ -355,35 +355,7 @@ const Motes = (() => {
 (() => {
   const nav = $('nav');
   let last = -1;
-  // iOS sometimes opens the app with fixed elements laid out against a viewport shorter than the screen (100dvh
-  // is still full height), so bottom:0 sits high with page showing underneath. Measure both and sink the gap.
-  const probe = (css) => {
-    const d = document.createElement('div');
-    d.style.cssText = 'position:fixed;left:0;width:0;visibility:hidden;pointer-events:none;' + css;
-    document.body.append(d);
-    const h = d.getBoundingClientRect().height;
-    d.remove();
-    return h;
-  };
-  let sunk = -1;
-  // Measured on iPhone 17 Pro Max (956pt tall) in a bad launch: 100dvh = 956, the fixed-position viewport = 860, and
-  // iOS only draws the top 894 (screen minus the 62pt status-bar inset; the rest is a black band nothing can reach).
-  // So the tab bar is lowered to the bottom of the drawn area, never to the physical screen bottom.
-  function fitSink() {
-    const full = Math.max(probe('top:0;height:100vh;height:100dvh'), probe('top:0;height:100lvh'));
-    const fixed = probe('top:0;bottom:0');
-    let sink = 0;
-    if (full - fixed > 2) {
-      const top = probe('top:0;height:env(safe-area-inset-top,0px)');
-      sink = Math.round(Math.min(full - fixed, full - (top > 20 ? top : 62) - fixed));
-      if (sink < 0 || sink > 200) sink = 0;
-    }
-    if (sink === sunk) return;
-    sunk = sink;
-    document.documentElement.style.setProperty('--sink', sink + 'px');
-  }
   function fitEnd() {
-    fitSink();
     const vv = window.visualViewport;
     const seen = Math.min(nav.getBoundingClientRect().top, innerHeight, vv ? vv.height + vv.offsetTop : innerHeight);
     const room = Math.ceil(Math.max(0, view.getBoundingClientRect().bottom - seen, nav.offsetHeight) + 24);

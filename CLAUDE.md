@@ -31,7 +31,7 @@ Static web idle game: three separate modes (Industrialist → Capitalist → Com
 - Commits/files: no Claude/AI attribution.
 
 ## iOS constraints
-- Launch bug: fixed elements may lay out against a shorter viewport and the bottom ~62pt may be undrawn. `fitSink()` in `main.js` sets `--sink`; every bottom-anchored fixed element subtracts it.
+- Status bar is opaque (`black`) on purpose: `black-translucent` + `viewport-fit=cover` triggers WebKit 301108 (viewport opens short, gap under the tab bar). Don't switch back. Changing it needs the Home Screen icon re-added.
 - Never let the page itself scroll (taps desync); only `#view` scrolls.
 
 ## Checks
