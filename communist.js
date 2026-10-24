@@ -723,7 +723,7 @@ const Communist = (() => {
     works: () => canDiscover(nextDiscovery()) || INDUSTRIES.some((d, i) => S.open[i] && Array.from({ length: shownTiers(i) }, (_, t) => t).some((t) => !S.units[i][t] && maxAffordable(i, t) > 0)),
     forge: () => INDUSTRIES.some((d, i) => canEnchant(i)),
     research: () =>
-      (QUESTS.some((m) => !S.quests[m.id] && m.done()) ? 'claim' : false) || RESEARCH.some((r) => !S.research[r.id] && S.arcana >= r.cost) || (!S.labs && canBuyLab()),
+      (QUESTS.some((m) => !S.quests[m.id] && m.done()) ? 'claim' : false) || RESEARCH.some((r) => !S.research[r.id] && S.arcana >= r.cost) || canBuyLab(),
     transmute: () => (goodTransmute() ? 'claim' : false) || DM_UPGRADES.some((u) => !S.dmUpgrades[u.id] && dmAvailable() >= u.cost),
     opus: (now) => (now >= S.dailyReadyAt || now >= S.boostReadyAt || (!S.wonAt && crucibleFraction() >= 1) ? 'claim' : false),
   };

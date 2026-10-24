@@ -40,18 +40,20 @@ const DOCT={
 };
 const ITEMS={dyn:{name:'Dynamite',desc:'Blasts 20 digs of ore into every deposit of this mine'},coffee:{name:'Strong coffee',desc:'Every mine runs twice as fast for 2 min'},lamp:{name:'Lucky lamp',desc:'Ore sells for triple in every mine for 60 s'},card:{name:'Time card',desc:'Pays 5 min of this mine’s idle income now'}};
 const ITEM_W=[['dyn',35],['coffee',30],['lamp',20],['card',15]];
+/* lab levels are spread over the mine's depth: level L belongs to shaft labAt() and opens once that shaft is open,
+   priced at f × that shaft's opening price, so research stays a real spend all the way down instead of maxing early */
 const LAB=[
- {id:'bits',name:'Diamond drill bits',desc:'Shafts dig 25% more ore per level',max:10,c0:5e4,r:40},
- {id:'blast',name:'Blasting crews',desc:'Digs finish 15% faster per level',max:5,c0:2e5,r:60},
- {id:'cage',name:'Counterweights',desc:'The elevator moves 15% faster per level',max:5,c0:5e4,r:40},
- {id:'conv',name:'Conveyor belts',desc:'Warehouse trips are 15% faster per level',max:5,c0:5e4,r:40},
- {id:'grade',name:'Ore grading',desc:'Ore sells for 10% more per level',max:10,c0:2e5,r:40},
- {id:'oil',name:'Lamp oil',desc:'Manager abilities recharge 10% faster per level',max:5,c0:2e5,r:60},
- {id:'flux',name:'Refinery flux',desc:'The refinery makes 25% more per level',max:5,c0:1e5,r:40},
- {id:'seams',name:'Reworked seams',desc:'The four shallowest shafts dig twice as much per level',max:6,c0:1e5,r:60},
- {id:'insul',name:'Insulated deposits',desc:'Deposits freeze 10% slower per level (freezing can be at most halved)',max:5,c0:5e4,r:30,only:'freeze'},
- {id:'sinks',name:'Heat sinks',desc:'Shafts heat up 9% slower per level (heating can be cut by at most 45%)',max:5,c0:5e4,r:30,only:'heat'},
- {id:'ballast',name:'Ballast tanks',desc:'The elevator can make 1 more stop per level',max:2,c0:2e5,r:200,only:'route'},
+ {id:'bits',name:'Diamond drill bits',desc:'Shafts dig 25% more ore per level',max:20,f:1.5},
+ {id:'blast',name:'Blasting crews',desc:'Digs finish 15% faster per level',max:10,f:6},
+ {id:'cage',name:'Counterweights',desc:'The elevator moves 15% faster per level',max:10,f:1.5},
+ {id:'conv',name:'Conveyor belts',desc:'Warehouse trips are 15% faster per level',max:10,f:1.5},
+ {id:'grade',name:'Ore grading',desc:'Ore sells for 10% more per level',max:20,f:6},
+ {id:'oil',name:'Lamp oil',desc:'Manager abilities recharge 10% faster per level',max:5,f:6},
+ {id:'flux',name:'Refinery flux',desc:'The refinery makes 25% more per level',max:10,f:3},
+ {id:'seams',name:'Reworked seams',desc:'The four shallowest shafts dig twice as much per level',max:6,f:3},
+ {id:'insul',name:'Insulated deposits',desc:'Deposits freeze 10% slower per level (freezing can be at most halved)',max:5,f:1.5,only:'freeze'},
+ {id:'sinks',name:'Heat sinks',desc:'Shafts heat up 9% slower per level (heating can be cut by at most 45%)',max:5,f:1.5,only:'heat'},
+ {id:'ballast',name:'Ballast tanks',desc:'The elevator can make 1 more stop per level',max:2,f:6,only:'route'},
 ];
 const PERKS=[
  {need:4,a:{id:'head',name:'Head start',desc:'Each claim starts with $2,500 and the second shaft open'},b:{id:'hands',name:'Trusted hands',desc:'Managers and promotions cost 60% less'}},
@@ -226,14 +228,18 @@ function matRate(m){if(!m.ref)return 0;return .003*m.ref*(1+.15*(m.shafts.length
 
 /* ---------- costs ---------- */
 const shaftUpC0=i=>i?100*Math.pow(12,i):40;
-const unlockCost=(m,i)=>500*Math.pow(50,i-1)*Math.pow(1.3,(i-1)*(i-2)/2)*(perk('charts')?.1:1);
+const depthPrice=i=>500*Math.pow(50,i-1)*Math.pow(1.3,(i-1)*(i-2)/2);
+const unlockCost=(m,i)=>depthPrice(i)*(perk('charts')?.1:1);
 const mgrBase=(m,k)=>{if(k==='e')return 120;if(k==='w')return 150;const i=+k.slice(1);return i?unlockCost(m,i)*.5:60};
 const mgrCost=(m,k,rank)=>mgrBase(m,k)*RANK_COST[rank]*(perk('hands')?.4:1);
 function bulk(c0,r,L,cash,mode){mode=mode||S.buy;const base=c0*Math.pow(r,L-1);let k;
   if(mode==='max'){k=Math.floor(Math.log(cash*(r-1)/base+1)/Math.log(r)+1e-9);if(!(k>=1))k=1}else k=+mode;
   return{k,cost:base*(Math.pow(r,k)-1)/(r-1)}}
 function upInfo(m,k,mode){const s=stageOf(m,k);if(k==='e')return bulk(40,R_E,s.lvl,m.cash,mode);if(k==='w')return bulk(50,R_W,s.lvl,m.cash,mode);return bulk(shaftUpC0(+k.slice(1)),R_SHAFT,s.lvl,m.cash,mode)}
-const labCost=(m,id)=>{const d=LAB.find(x=>x.id===id);return d.c0*Math.pow(d.r,m.lab[id])*(1+.1*m.ingots)*(perk('assay')?.25:1)};
+const labAt=(m,d)=>2+9*m.lab[d.id]/d.max; // fractional shaft index; the lab itself opens with the third shaft
+const labShaft=(m,id)=>Math.floor(labAt(m,LAB.find(x=>x.id===id)))+1; // shafts needed for the next level
+const labCost=(m,id)=>{const d=LAB.find(x=>x.id===id);return d.f*depthPrice(labAt(m,d))*(1+.1*m.ingots)*(perk('assay')?.25:1)};
+const labReady=(m,id)=>{const d=LAB.find(x=>x.id===id);return!!d&&(!d.only||d.only===regOf(m).mech)&&m.lab[id]<d.max&&m.shafts.length>=labShaft(m,id)};
 const refCost=m=>2e4*Math.pow(3,m.ref);
 const abDur=()=>45*(perk('vets')?2:1);
 const abCd=m=>180*(1-.1*m.lab.oil)*(m.doct==='rush'?.7:1);
@@ -331,7 +337,7 @@ const act={
     if(regOf(m).mech==='route')s.route=routeList(m).length<maxStops(m)?1:0;m.shafts.push(s);m.best=Math.max(m.best,m.shafts.length);emit('unlock',{mi:m.i,i:n});if(n===11&&!m.mastered){m.mastered=1;emit('mastered',{mi:m.i})}return true},
   route(i,mi){const m=M(mi),s=m.shafts[i];if(!s||regOf(m).mech!=='route')return false;if(!s.route&&routeList(m).length>=maxStops(m))return'full';s.route=s.route?0:1;return true},
   swapRoute(i,j,mi){const m=M(mi),a=m.shafts[i],b=m.shafts[j];if(!a||!b||regOf(m).mech!=='route'||!a.route||b.route)return false;a.route=0;b.route=1;return true},
-  research(id,mi){const m=M(mi),d=LAB.find(x=>x.id===id);if(!S.feat.lab||!d||(d.only&&d.only!==regOf(m).mech)||m.lab[id]>=d.max)return false;const c=labCost(m,id);if(!(m.cash>=c))return false;m.cash-=c;m.lab[id]++;bump('lab',1,m);emit('research',{mi:m.i,id,lvl:m.lab[id]});return true},
+  research(id,mi){const m=M(mi);if(!S.feat.lab||!labReady(m,id))return false;const c=labCost(m,id);if(!(m.cash>=c))return false;m.cash-=c;m.lab[id]++;bump('lab',1,m);emit('research',{mi:m.i,id,lvl:m.lab[id]});return true},
   doctrine(id,mi){const m=M(mi);if(!S.feat.lab||m.doct||!DOCT[id])return false;m.doct=id;emit('doctrine',{mi:m.i,id});return true},
   buildRef(mi){const m=M(mi);if(!S.feat.refinery)return false;const c=refCost(m);if(!(m.cash>=c))return false;m.cash-=c;m.ref++;if(m.ref===1&&!m.split)m.split=.25;emit('refinery',{mi:m.i,lvl:m.ref});return true},
   setSplit(v,mi){const m=M(mi);v=+v;if(![0,.1,.25,.5].includes(v))return false;m.split=v;return true},
@@ -401,7 +407,7 @@ function genMission(exclude){
   if(S.feat.ranks){const rk=keysOf(m).find(k=>{const s=stageOf(m,k);return s.mgr>=1&&s.mgr<3&&mgrCost(m,k,s.mgr+1)<=B*6});if(rk)add('rank',3,()=>mk(m,'rank',stageOf(m,rk).mgr+1,{key:rk},120,1))}
   if(keysOf(m).some(k=>{const s=stageOf(m,k);return s.mgr&&s.spec==='a'}))add('ability',2,()=>mk(m,'ability',3+Math.floor(R()*4),{},60));
   if(S.feat.events)add('events',2,()=>mk(m,'events',2,{},90,1));
-  if(S.feat.lab&&LAB.some(d=>(!d.only||d.only===reg.mech)&&m.lab[d.id]<d.max&&labCost(m,d.id)<=B*5))add('lab',3,()=>mk(m,'lab',1,{},60));
+  if(S.feat.lab&&LAB.some(d=>labReady(m,d.id)&&labCost(m,d.id)<=B*5))add('lab',3,()=>mk(m,'lab',1,{},60));
   if(m.ref>0&&m.split>0){const mr=matRate(m)*m.split*2;add('refine',2,()=>mk(m,'refine',Math.max(2,Math.ceil(mr*300)),{},60))}
   if(reg.mech==='heat')add('vent',2,()=>mk(m,'vent',8+Math.floor(R()*8),{},60));
   if(itemCount()>0)add('item',1,()=>mk(m,'item',1,{},30));
@@ -521,7 +527,7 @@ function pickW(list){let t=0;for(const x of list)t+=x[1];let r=R()*t;for(const x
 api.rng=Math.random;
 Object.assign(api,{REGIONS,MATS,MIL,LAB,PERKS,ACH,ITEMS,SPEC,DOCT,EQUIP,PROJ,RANK_NAME,RANK_S,RANK_EW,CLAIM_MIN,act,step,offline,awaySeconds,load,
   fresh:()=>{S=fresh();refill();return S},serialize,state:()=>S,on:f=>subs.push(f),money,nice,
-  cur,regOf,rates,value,stageOf,keyName,keysOf,upInfo,mgrCost,unlockCost,labCost,refCost,claimGain,nextIngotAt,ingotAt,eCap,wCap,wTrip,eRound,cycle,shaftOut,eRate,
+  cur,regOf,rates,value,stageOf,keyName,keysOf,upInfo,mgrCost,unlockCost,labCost,labReady,labShaft,refCost,claimGain,nextIngotAt,ingotAt,eCap,wCap,wTrip,eRound,cycle,shaftOut,eRate,
   nextMil,allWeakest,elevPos,abDur,abCd,otDur,isOn:o=>on(o),missionProg,missionText,dailyReady,offMult,itemCount,perk,incomeNow,achCount,stockCap,depCap,maxStops,routeList,
   upgradeGain,bestShaftUpgrade,loadInfo,  freezeK,freezeLoss,heatUptime,heatCut,freezeCut,matRate,equipCost,projCost,canPay,slotCount,eqMax,offlineCap,projDone,totalIngots,eq,clock:()=>S.clock});
 return api;
@@ -1209,11 +1215,12 @@ const Industrialist = (() => {
       let h = `<div class="row panel"><div><b>${icon('flask', 16)} ${reg.name} lab</b><small>This mine only</small></div></div>`;
       if (m.doct) h += row(`Doctrine: ${G.DOCT[m.doct].name}`, G.DOCT[m.doct].desc, owned_('Adopted'));
       else h += section('Choose a doctrine') + tip('One per claim. It stays until you stake a new claim here.') + Object.keys(G.DOCT).map((id) => row(G.DOCT[id].name, G.DOCT[id].desc, btn('doct', id, armed === 'doct-' + id ? 'Tap again' : 'Adopt', true))).join('');
-      h += section('Research');
+      h += section('Research') + tip('More levels open as this mine goes deeper.');
       h += G.LAB.filter((d) => !d.only || d.only === reg.mech)
         .map((d) => {
           const L = m.lab[d.id], c = G.labCost(m, d.id);
-          return row(`${d.name}${d.only ? ` <i class="tag">${reg.short} only</i>` : ''}`, `${d.desc} · ${L} / ${d.max}`, L >= d.max ? owned_('Maxed') : btn('research', d.id, live(usd(c)), m.cash >= c));
+          const right = L >= d.max ? owned_('Maxed') : G.labReady(m, d.id) ? btn('research', d.id, live(usd(c)), m.cash >= c) : owned_(`Shaft ${G.labShaft(m, d.id)}`);
+          return row(`${d.name}${d.only ? ` <i class="tag">${reg.short} only</i>` : ''}`, `${d.desc} · ${L} / ${d.max}`, right);
         })
         .join('');
       return [h];
@@ -1292,10 +1299,20 @@ const Industrialist = (() => {
     return g >= 1 && (1 + 0.1 * (m.ingots + g)) / (1 + 0.1 * m.ingots) >= 1.5;
   };
   const TAB_BADGES = {
-    mine: () => (S.ev.cur && S.ev.cur.mi === S.cur ? 'alert' : false), // an event in this mine: it won't wait
+    // an event in this mine (it won't wait), else a shaft, manager, promotion or refinery level it can afford.
+    // Plain stage levels are left out: one is almost always affordable, so the dot would never go out
+    mine: () => {
+      const m = MI(), cash = m.cash, n = m.shafts.length;
+      if (S.ev.cur && S.ev.cur.mi === S.cur) return 'alert';
+      return (n < 12 && cash >= G.unlockCost(m, n)) || (S.feat.refinery && cash >= G.refCost(m)) ||
+        G.keysOf(m).some((k) => { const r = G.stageOf(m, k).mgr; return r ? S.feat.ranks && r < 3 && cash >= G.mgrCost(m, k, r + 1) : cash >= G.mgrCost(m, k, 1); });
+    },
     missions: () => (S.missions.some((x) => x.done) || G.dailyReady() ? 'claim' : false),
-    lab: () => (S.feat.lab && !MI().doct ? 'alert' : false), // a doctrine to choose
-    works: () => !!S.feat.works && G.PROJ.some((p) => !G.projDone(p.id) && G.totalIngots() >= p.ingots && G.canPay(G.projCost(p.id))),
+    lab: () => S.feat.lab && (!MI().doct ? 'alert' : G.LAB.some((d) => G.labReady(MI(), d.id) && MI().cash >= G.labCost(MI(), d.id))),
+    works: () =>
+      !!S.feat.works &&
+      (G.PROJ.some((p) => !G.projDone(p.id) && G.totalIngots() >= p.ingots && G.canPay(G.projCost(p.id))) ||
+        G.EQUIP.some((d) => (S.equip[d.id] || 0) < G.eqMax(d) && G.canPay(G.equipCost(d.id)))),
     opus: () => (goodClaim(MI()) ? 'claim' : false) || G.PERKS.some((P, t) => G.totalIngots() >= P.need && !S.perkLock[t] && !S.perks[t]),
   };
   // The four boxes at the top: [label, icon, value, format, note]

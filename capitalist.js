@@ -744,8 +744,14 @@ const Capitalist = (() => {
 
   // Red dots on the tab bar: something on that tab is ready or affordable right now
   const TAB_BADGES = {
-    // the next mine in the line can be opened
-    mines: () => UNITS.some((u, i) => !level(i) && isVisible(i) && S.cash >= buyCost(i, 1)),
+    // the next mine in the line can be opened, or an open mine can be bought up to its next speed milestone
+    mines: () =>
+      UNITS.some((u, i) => {
+        if (!isVisible(i)) return false;
+        if (!level(i)) return S.cash >= buyCost(i, 1);
+        const t = nextSpeedMilestone(i);
+        return !!t && maxAffordable(i, S.cash) >= t - level(i);
+      }),
     // a golem to summon or an enchantment to cast
     forge: () =>
       DISPLAY_ORDER.some((i) => (canSummon(i) && S.cash >= golemCost(i)) || (canEnchant(i) && S.cash >= upgradeCost(i))),
