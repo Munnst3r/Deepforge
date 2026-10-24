@@ -37,7 +37,7 @@ const Communist = (() => {
   // Every other industry's producers need the previous industry's material: Iron needs Copper, Crystal needs Iron...
   const PREVIOUS_MATERIAL = (t) => 10 * 60 ** t;
   // Output per producer per second: Panners pan 5 gold, other first producers dig 1 of their material, and every
-  // higher producer builds 0.2 of the one below it
+  // higher producer builds 0.1 of the one below it
   const BASE_OUTPUT = (i) => (i === GOLD ? 5 : 1);
   const BUILD_RATE = 0.1;
   // Discovering an industry: [gold, previous industry's material]
@@ -91,7 +91,7 @@ const Communist = (() => {
     ['questing-guild', 'Questing Guild', 'Quests give +8% output each', 8e5, { questBonus: 0.08 }],
     ['deep-rails', 'Deep Rails', 'Every producer builds 50% faster', 2.5e6, { build: 1.5 }],
     ['mithril-smithing', 'Mithril Smithing', 'Mithril ×3', 8e6, { ind: [4, 3] }],
-    ['theory-of-transmutation', 'Theory of Transmutation', 'Dark Matter bonus +50%', 2.5e7, { dmBonus: 0.5 }],
+    ['theory-of-transmutation', 'Theory of Transmutation', 'Dark Matter bonus 2% → 3% each', 2.5e7, { dmBonus: 0.5 }],
     ['aether-siphons', 'Aether Siphons', 'Aether ×3', 8e7, { ind: [5, 3] }],
     ['philosophers-salt', "Philosopher's Salt", 'Every industry ×3', 2.5e8, { out: 3 }],
     ['central-planning', 'Central Planning', "Plans' boosts are twice as strong", 8e8, { planPower: 2 }],
@@ -105,7 +105,7 @@ const Communist = (() => {
     ['elemental-winds', 'Elemental Winds', 'Every producer builds 50% faster', 2.5e12, { build: 1.5 }],
     ['starlit-geodes', 'Starlit Geodes', 'Crystal and Aether ×5', 8e12, { ind3: [[3, 5], [5, 5]] }],
     ['prima-materia', 'Prima Materia', 'Every industry ×5', 2.5e13, { out: 5 }],
-    ['dark-distillery', 'Dark Distillery', 'Dark Matter bonus +67%', 8e13, { dmBonus: 0.67 }],
+    ['dark-distillery', 'Dark Distillery', 'Dark Matter bonus up to 4.3% each', 8e13, { dmBonus: 0.67 }],
     ['clockwork-of-ages', 'Clockwork of Ages', 'Every industry ×8', 2.5e14, { out: 8 }],
     ['hero-of-labor', 'Heroes of Labor', 'Every-tier milestones give ×2 instead of ×1.25', 5e14, { tierPower: 2 }],
     ['hermetic-seals', 'Hermetic Seals', 'Offerings to the crucible count ×2 again', 8e14, { offer: 2 }],
@@ -457,7 +457,7 @@ const Communist = (() => {
     return p >= 3 && (!S.darkMatter || p >= S.darkMatter);
   };
 
-  const xmult = (n) => (n < 1e5 ? plain(n) : fmt(n)); // ×3, ×81, ×6,561, then ×1.2M
+  const xmult = (n) => (n < 1e5 ? plain(+n.toFixed(2)) : fmt(n)); // ×3, ×1.95, ×81, ×6,561, then ×1.2M
   // The next every-tier milestone of an industry, under its output line on the Works tab
   function tierMilestoneLine(i) {
     const n = S.tierMs[i], goal = TIER_MILESTONES[n], lo = tierWeakest(i), so = n ? ` · ×${xmult(M.tierPower ** n)} so far` : '';
@@ -506,10 +506,12 @@ const Communist = (() => {
 
   // Pour what's on hand into the crucible (never more than it still needs)
   function offer(i) {
-    const give = Math.min(S.res[i], Math.max(0, stageGoal(i) - S.offered[i]) / M.offer);
+    const goal = stageGoal(i), need = Math.max(0, goal - S.offered[i]) / M.offer, give = Math.min(S.res[i], need);
     if (give <= 0) return 0;
     S.res[i] -= give;
-    S.offered[i] = Math.min(stageGoal(i), S.offered[i] + give * M.offer);
+    // when it's the need that runs out, the part is full: offered + (goal - offered) can round a hair under the goal,
+    // which would show 100.0% and still keep the step from completing
+    S.offered[i] = give >= need ? goal : Math.min(goal, S.offered[i] + give * M.offer);
     return give;
   }
 
@@ -892,7 +894,7 @@ const Communist = (() => {
   function producerCard(i, t) {
     const d = INDUSTRIES[i], name = d.tiers[t], k = buyAmount(i, t), n = owned(i, t);
     const verb = i === GOLD ? 'Pans' : 'Digs';
-    const makes = t === 0 ? `${verb} ${live(fmt(n * BASE_OUTPUT(i) * industryMult(i)))} ${d.name}/s` : `Builds ${live(fmt(buildRate(i, t)))} ${plural(d.tiers[t - 1])}/s`;
+    const makes = t === 0 ? `${verb} ${live(fmt(M.rate[i]))} ${d.name}/s` : `Builds ${live(fmt(buildRate(i, t)))} ${plural(d.tiers[t - 1])}/s`;
     const price = priceOf(i, t, k).map(([r, a]) => [r, a, r === 'u' ? (a === 1 ? d.tiers[t - 1] : plural(d.tiers[t - 1])) : resName(r)]);
     const ok = buyMode === 'max' ? maxAffordable(i, t) > 0 : canAfford(price, i, t);
     const goal = TIER_MILESTONES[S.tierMs[i]], slim = n > 0 && k < n * 1e-3 && !(goal && S.bought[i][t] < goal);
@@ -966,9 +968,12 @@ const Communist = (() => {
     const next = steps.find(([, done]) => !done());
     return { style: steps.filter(([, done]) => done()).length, next: next ? next[0] : null };
   };
+  // Rubedo's own design comes at its last step: completing the Rubedo forges the Stone in the same tap. A design once
+  // unlocked stays unlocked in a new Great Work: the Resonance it gives the other modes was earned for good
   const GOAL_STEPS = [
-    ...STAGES.map((st, i) => ['Complete ' + st.name, () => S.stage > i || S.wonAt > 0]),
-    ["Forge the Philosopher's Stone", () => S.wonAt > 0],
+    ...STAGES.slice(0, -1).map((st, i) => ['Complete ' + st.name, () => S.stage > i || S.wonAt > 0 || S.stones > 0]),
+    ["Reach the Rubedo's last step", () => S.stage > 3 || (S.stage === 3 && S.step >= STEPS - 1) || S.wonAt > 0 || S.stones > 0],
+    ["Forge the Philosopher's Stone", () => S.wonAt > 0 || S.stones > 0],
   ];
   function stone() {
     return {
@@ -1099,7 +1104,7 @@ const Communist = (() => {
     }
     if (fx.out) return perSec(bn ? bn.res : GOLD, fx.out);
     if (fx.build) return 'Now: every chain grows its lower producers faster';
-    if (fx.arcana) return S.labs ? `Now: +${fmt(M.labRate * (fx.arcana * loss - 1))} Arcana/s` : 'Build a Research Lab to benefit';
+    if (fx.arcana) return !S.labs ? 'Build a Research Lab to benefit' : fx.arcana * loss > 1.001 ? `Now: +${fmt(M.labRate * (fx.arcana * loss - 1))} Arcana/s` : 'Now: costs more bonus than it gives'; // never "+-"
     if (fx.offline) return M.rate[GOLD] ? `Now: +${money(M.rate[GOLD] * 0.5 * 3600)} gold per hour away, and more of every material` : '';
     if (fx.dmBonus) {
       const a = dmAvailable();

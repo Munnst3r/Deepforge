@@ -15,6 +15,7 @@ Static web idle game: three separate modes (Industrialist → Capitalist → Com
 | `gems.js` | `StoneView`: 3D gem on each mode's last tab (`GEMS_IND`, `GEMS`, `GEMS_COM`) |
 | `main.js` | Ending, mode switching, title picker, start-up + main loop, `Motes` background, iOS viewport fixes |
 | `sim.js` | Headless pacing simulation (`node sim.js`) |
+| `test.js` | Regression tests: formulas, purchases, prestige, saves and time away (`node test.js`) |
 
 ## Architecture
 - Each mode is a closed IIFE with its own state `S` and modifiers `M` (rebuilt by `refresh()`); the app only uses the returned object (see MODE INTERFACE in `app.js`).
@@ -37,4 +38,5 @@ Static web idle game: three separate modes (Industrialist → Capitalist → Com
 ## Checks
 - `for f in *.js; do node --check $f; done`
 - Load `index.html` in Playwright at 440×956 and watch for page errors.
+- `node test.js` (it and sim.js need Playwright; `PW_CHANNEL=msedge` uses an installed Edge instead of Playwright's Chromium).
 - `node sim.js` after balance changes.

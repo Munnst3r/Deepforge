@@ -111,7 +111,7 @@ const Capitalist = (() => {
     ['grand-grimoire', 'Grand Grimoire', 'Research Labs ×5 Arcana', 3e14, { arcana: 5 }],
     ['citrinitas', 'Citrinitas', 'Profit ×5', 1.2e15, { profit: 5 }],
     ['ancestral-veins', 'Ancestral Veins', 'The first 20 mines: profit ×25', 2.5e15, { early: [20, 25] }],
-    ['void-resonance', 'Void Resonance', 'Dark Matter bonus +50%', 5e15, { dmBonus: 0.5 }],
+    ['void-resonance', 'Void Resonance', 'Dark Matter bonus +1% each', 5e15, { dmBonus: 0.5 }],
     ['golem-academy', 'Golem Academy', 'Golems 75% cheaper', 2e16, { golemPrice: 0.25 }],
     ['rubedo', 'Rubedo', 'Profit ×8', 8e16, { profit: 8 }],
     ['emerald-tablet', 'Emerald Tablet', 'Profit ×10', 3e17, { profit: 10 }],
@@ -158,7 +158,7 @@ const Capitalist = (() => {
     ['shallows', 'Trial of the Shallows', 'Only the first ten mines can be opened', 1e16, 'Profit ×5', { profit: 5 }],
     ['thrift', 'Trial of Thrift', 'Mine prices climb twice as steeply', 1e20, 'Mine levels 25% cheaper', { price: 0.75 }],
     ['silence', 'Trial of Silence', 'Research has no effect', 1e24, 'Research Labs ×5 Arcana', { arcana: 5 }],
-    ['dark-fast', 'Trial of the Dark Fast', 'Dark Matter gives no profit bonus', 1e28, 'Dark Matter bonus +50%', { dmBonus: 0.5 }],
+    ['dark-fast', 'Trial of the Dark Fast', 'Dark Matter gives no profit bonus', 1e28, 'Dark Matter bonus +1% each', { dmBonus: 0.5 }],
     ['bare-stone', 'Trial of Bare Stone', 'Enchantments can’t be cast', 1e33, 'All cycles 2× faster', { speed: 2 }],
     ['lone-golem', 'Trial of the Lone Golem', 'Only one mine can have a golem', 1e38, 'Every golem is summoned for free at the start of a run', { autoGolems: 31 }],
     ['slow-earth', 'Trial of Slow Earth', 'All cycles 10× slower', 1e52, 'Profit ×10', { profit: 10 }],
@@ -325,6 +325,8 @@ const Capitalist = (() => {
     const s = mergeSave(newState(), raw);
     if (s.level[CRUCIBLE] > 0) s.crucibleBuilt = true;
     if (!TRIALS.some((t) => t.id === s.trial)) s.trial = '';
+    s.upgrades = s.upgrades.map((n) => Math.min(UPGRADE_STEPS.length, Math.floor(n))); // they index the upgrade tables
+    s.allMs = Math.min(ALL_MILESTONES.length, Math.floor(s.allMs));
     // rune upgrades from older versions that no longer exist (research is now always kept): their runes come back
     for (const [old, cost] of [['archive', 10], ['eternal-library', 150]])
       if (s.runeUpgrades[old]) {
@@ -559,7 +561,7 @@ const Capitalist = (() => {
       S.cash -= c;
       S.level[i] += k;
       if (i === CRUCIBLE) S.crucibleBuilt = true;
-      if (speedMilestones(i) > before) milestoneFlash(i);
+      if (speedMilestones(i) > before) milestoneFlash(i, 2 ** (speedMilestones(i) - before)); // ×100 can cross several
       const got = allMilestoneCheck();
       if (got) {
         refresh();
@@ -627,7 +629,7 @@ const Capitalist = (() => {
       S.runesSpent += u.cost;
       S.runeUpgrades[id] = 1;
       refresh();
-      if (!inTrial('lone-golem')) for (let i = 0; i < M.autoGolems; i++) if (level(i)) S.golems[i] = 1; // Bound Golems start work now, not next run
+      if (u.fx.autoGolems && !inTrial('lone-golem')) for (let i = 0; i < u.fx.autoGolems; i++) if (level(i)) S.golems[i] = 1; // Bound Golems start work now, not next run
       toast(`${u.name}: ${u.desc}`);
     },
     transmute() {
@@ -698,13 +700,13 @@ const Capitalist = (() => {
     Polish.pop(cards[i].card, html, UNITS[i].color, i, always);
   }
   // A speed milestone: a ring of the mine's color spreads from its card, with a burst from its icon
-  function milestoneFlash(i) {
+  function milestoneFlash(i, x) {
     const c = cards[i] && cards[i].card;
     if (!c) return;
     Polish.restart(c, 'ring');
     const r = c.querySelector('.ic').getBoundingClientRect();
     Polish.burst(r.left + r.width / 2, r.top + r.height / 2, UNITS[i].color, 12, 56);
-    floatNumber(i, 'Speed ×2!', true);
+    floatNumber(i, `Speed ×${x}!`, true);
   }
   // ===== Tutorial (shown the first time you open this mode) =====
   const TUTORIAL = [
@@ -803,7 +805,7 @@ const Capitalist = (() => {
       c.card.hidden = hide;
       if (hide) continue;
       const t = cycleTime(i), k = buyAmount(i);
-      const ok = buyMode === 'max' ? maxAffordable(i, S.cash) > 0 : S.cash >= buyCost(i, k);
+      const ok = isVisible(i) && (buyMode === 'max' ? maxAffordable(i, S.cash) > 0 : S.cash >= buyCost(i, k)); // buy() refuses mines that aren't open to you yet
       c.card.classList.toggle('on', L > 0);
       c.card.classList.toggle('far', !isVisible(i) && !ok); // not unlocked yet: dimmed
       if (c.level._text && +c.level._text < L) Polish.restart(c.level, 'tick');
@@ -860,7 +862,7 @@ const Capitalist = (() => {
         questSection(QUESTS, S.quests, `Each claimed quest adds +${Math.round(M.questBonus * 100)}% profit permanently.`) +
           section('Research') +
           tip('Research Labs brew Arcana. Spend it on alchemy that lasts: discoveries are never lost, not even when you ascend.') +
-          upgradeList(RESEARCH, S.research, { action: 'research', price: arcanaPrice, funds: S.arcana, key: 'research', why: whyNow, later: 'Later research', allDone: 'Every discovery is made.', ownedLabel: 'Known', doneKey: '-done', doneLabel: 'Discoveries made' }),
+          upgradeList(RESEARCH, S.research, { action: 'research', price: arcanaPrice, funds: S.arcana, key: 'research', why: (u) => (inTrial('silence') ? 'No effect during the Trial of Silence' : whyNow(u)), later: 'Later research', allDone: 'Every discovery is made.', ownedLabel: 'Known', doneKey: '-done', doneLabel: 'Discoveries made' }),
       ];
     },
     transmute() {
@@ -868,7 +870,7 @@ const Capitalist = (() => {
       const from = earningsForDm(total), to = earningsForDm(total + 1), pct = clamp01((S.lifetimeEarned - from) / (to - from));
       let h =
         `<div class="row panel"><b>${icon('spiral', 16)} Dark Matter: ${count(avail)}</b>` +
-        `<small>Profit bonus <b>×${live(fmt(1 + dmBonusAt(avail)))}</b> · +${(M.dmPer * 100).toFixed(1)}% per Dark Matter</small>` +
+        (inTrial('dark-fast') ? `<small>No profit bonus during the Trial of the Dark Fast</small>` : `<small>Profit bonus <b>×${live(fmt(1 + dmBonusAt(avail)))}</b> · +${(M.dmPer * 100).toFixed(1)}% per Dark Matter</small>`) +
         `<div class="bar">${liveBar(pct * 100)}<span>${live(Math.floor(pct * 100))}% to the next Dark Matter</span></div>` +
         `<small>Earnings this ascension ${live(money(S.lifetimeEarned))} · next Dark Matter at ${live(money(to))}</small></div>` +
         `<p class="hint">${transmuteHint(p, S.darkMatter, earningsForDm(1))}</p>` +
@@ -909,15 +911,15 @@ const Capitalist = (() => {
       section('Ascension') +
       `<div class="row panel"><b>${icon('runes', 16)} Elder Runes: ${count(runes)}</b>` +
       `<small>Profit <b>×${fmt(1 + M.runeBonus * runePower())}</b> · Dark Matter from transmuting <b>×${fmt(runeDmMult())}</b></small>` +
-      `<small>Dark Matter earned this ascension: ${live(count(S.darkMatter))}${q ? ` · next rune at ${live(count(nextRuneAt()))}` : ''}</small></div>` +
+      `<small>Dark Matter earned this ascension: ${live(count(S.darkMatter))}${q || S.runes ? ` · next rune at ${live(count(nextRuneAt()))}` : ''}</small></div>` +
       `<p class="hint">${ascendHint(q)}</p>` +
-      bigButton('ascend', armed === 'ascend' ? 'Tap again to ascend' : q ? `Ascend for +${count(q)} ${icon('runes', 16)}` : 'Not unlocked yet', q > 0) +
+      bigButton('ascend', armed === 'ascend' ? 'Tap again to ascend' : q ? `Ascend for +${count(q)} ${icon('runes', 16)}` : S.runes ? 'Nothing to gain yet' : 'Not unlocked yet', q > 0) +
       fold(
         'ascend-help',
         'How ascending works',
         `<p><b>Ascending</b> resets your run and your Dark Matter with its upgrades. You keep runes and rune upgrades, research, Arcana, quests, achievements, trials, crucible essence and catalysts.</p>` +
           `<p>Every rune you've ever earned gives +${Math.round(M.runeBonus * 100)}% profit (past 1,000 runes the bonus grows with the square root) and raises the Dark Matter you get from transmuting. Spending runes on upgrades never lowers that.</p>` +
-          `<p>Ascending unlocks at ${plain(ASCEND_AT)} Dark Matter earned since your last ascension, for 10 runes. More Dark Matter gives more runes: 10× the Dark Matter doubles them.</p>`,
+          `<p>Ascending unlocks at ${plain(ASCEND_AT)} Dark Matter earned since your last ascension, for 10 runes. More Dark Matter gives more runes: 10× the Dark Matter doubles them. Each ascension pays only the runes beyond those you already have, so after the first you ascend again once you beat your best.</p>`,
       ) +
       section('Rune upgrades') +
       upgradeList(RUNE_UPGRADES, S.runeUpgrades, { action: 'runeUpgrade', price: runePrice, funds: runes, key: 'rune', why: whyNow, later: 'More rune upgrades', allDone: 'Every rune upgrade is owned.' })
@@ -1000,6 +1002,7 @@ const Capitalist = (() => {
     return [bonuses + stats, achievementSection(ACHIEVEMENTS, S.achievements, 'profit')];
   }
   function ascendHint(q) {
+    if (!q && S.runes) return `Ascending again pays once this ascension's Dark Matter beats your best: the next rune comes at ${count(nextRuneAt())} Dark Matter (${count(S.darkMatter)} so far).`;
     if (!q) return `Ascension unlocks at ${plain(ASCEND_AT)} Dark Matter earned since your last ascension (${count(S.darkMatter)} so far).`;
     if (!S.runes) return `Your first ascension gives ${count(q)} Elder Runes.`;
     const r = (S.runes + q) / S.runes;
@@ -1020,12 +1023,14 @@ const Capitalist = (() => {
     const next = steps.find(([, done]) => !done());
     return { style: steps.filter(([, done]) => done()).length, next: next ? next[0] : null };
   };
+  // A design once unlocked stays unlocked in a new Great Work (it resets transmutes, ascensions and the crucible): the
+  // Resonance it gives the other modes was earned for good
   const GOAL_STEPS = [
-    ['Transmute once', () => S.transmutes >= 1],
-    ['Transmute 5 times', () => S.transmutes >= 5],
-    ['Ascend once', () => S.ascensions >= 1],
-    ['Ascend 3 times', () => S.ascensions >= 3],
-    ['Build the Prime Crucible', () => S.crucibleBuilt],
+    ['Transmute once', () => S.transmutes >= 1 || S.stones > 0],
+    ['Transmute 5 times', () => S.transmutes >= 5 || S.stones > 0],
+    ['Ascend once', () => S.ascensions >= 1 || S.stones > 0],
+    ['Ascend 3 times', () => S.ascensions >= 3 || S.stones > 0],
+    ['Build the Prime Crucible', () => S.crucibleBuilt || S.stones > 0],
     ...[25, 50, 75, 90].map((v) => ['Fill the Prime Crucible to ' + v + '%', () => chargeFraction() >= v / 100 || S.wonAt > 0 || S.stones > 0]),
     ["Forge the Philosopher's Stone", () => S.wonAt > 0 || S.stones > 0],
     ["Forge a second Philosopher's Stone", () => S.stones + (S.wonAt ? 1 : 0) >= 2],
@@ -1080,7 +1085,7 @@ const Capitalist = (() => {
   const labRate = () => (level(LAB) ? payout(LAB) / cycleTime(LAB) : 0);
   function whyNow(u, dmCost = 0) {
     const fx = u.fx, inc = income();
-    const dmLoss = dmCost ? (1 + dmBonusAt(Math.max(0, dmAvailable() - dmCost))) / (1 + dmBonusAt(dmAvailable())) : 1;
+    const dmLoss = dmCost && !inTrial('dark-fast') ? (1 + dmBonusAt(Math.max(0, dmAvailable() - dmCost))) / (1 + dmBonusAt(dmAvailable())) : 1;
     const gain = (x) => {
       const net = x * dmLoss;
       if (inc <= 0) return '';
@@ -1091,7 +1096,7 @@ const Capitalist = (() => {
     if (fx.early) {
       let g = 0;
       for (let i = 0; i < fx.early[0]; i++) if (level(i)) g += payout(i) / cycleTime(i);
-      return g > 0 ? `Now: about +${money(g * (fx.early[1] * dmLoss - 1))}/s` : '';
+      return !g ? '' : fx.early[1] * dmLoss > 1.001 ? `Now: about +${money(g * (fx.early[1] * dmLoss - 1))}/s` : 'Now: costs more bonus than it gives';
     }
     if (fx.price) {
       const i = DISPLAY_ORDER.find((j) => isVisible(j) && !level(j));
@@ -1101,7 +1106,7 @@ const Capitalist = (() => {
       const i = DISPLAY_ORDER.find((j) => level(j) && !S.golems[j]);
       return i !== undefined ? `Now: the ${UNITS[i].name} golem would cost ${money(golemCost(i) * fx.golemPrice)}` : 'Helps after your next reset';
     }
-    if (fx.arcana) return labRate() ? `Now: about +${fmt(labRate() * (fx.arcana * dmLoss ** 0.2 - 1))} Arcana/s` : 'Build a Research Lab to benefit';
+    if (fx.arcana) return !labRate() ? 'Build a Research Lab to benefit' : fx.arcana * dmLoss ** 0.2 > 1.001 ? `Now: about +${fmt(labRate() * (fx.arcana * dmLoss ** 0.2 - 1))} Arcana/s` : 'Now: costs more bonus than it gives'; // never "+-"
     if (fx.offline) return M.golemIncome ? `Now: +${money(M.golemIncome * 0.5 * 3600)} per hour away` : '';
     if (fx.dmBonus) {
       const a = dmAvailable(), next = dmBonusFor(0.02 * (1 + M.dmBonus + fx.dmBonus), a);

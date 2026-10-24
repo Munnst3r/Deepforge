@@ -105,11 +105,13 @@ function bots() {
             if (g > 0 && (!best || g / c > best.r)) best = { k, r: g / c, c };
           }
           if (!best) {
-            // nothing raises income on its own (e.g. an elevator bottleneck where a bigger car only travels further):
-            // level the weakest shaft, which is what a person would do
+            // nothing raises income on its own this level (a car just past a shaft's batch size travels further for a
+            // level or two): level what the Mine tab highlights, the slowest stage, or else the weakest shaft
+            const bn = G.rates(m, false, true).bn;
             let lo = null;
             m.shafts.forEach((s, i) => { if (!lo || s.lvl < lo.s.lvl) lo = { s, k: 's' + i }; });
-            best = { k: lo.k, c: G.upInfo(m, lo.k, '1').cost };
+            const k = bn === 'Elevator' ? 'e' : bn === 'Warehouse' ? 'w' : lo.k;
+            best = { k, c: G.upInfo(m, k, '1').cost };
           }
           if (m.cash < best.c || !A.up(best.k, mi)) break;
         }
@@ -165,7 +167,7 @@ async function simulate(page, key, hours) {
 }
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : {});
   for (const key of ['industrialist', 'capitalist', 'communist']) {
     if (ONLY !== 'all' && ONLY !== key) continue;
     const page = await browser.newPage();

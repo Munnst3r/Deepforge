@@ -2,7 +2,8 @@
 // The app only talks to a mode through these. Each mode module returns an object with:
 //   key, name, emblem (icon), accent (its theme color), saveKey (its own save slot), tabs, tutorial
 //   state            the mode's save data (read only; the mode owns it)
-//   load(raw)        start from saved data (or a fresh game if raw is empty); fresh() starts over
+//   load(raw)        start from saved data (or a fresh game if raw is empty; returns false if raw couldn't be used)
+//                    fresh() starts over
 //   refresh(now)     rebuild its modifiers; tick(dt) plays dt seconds; catchUp(seconds) plays time away at the
 //                    offline rate and returns what was made: [{ name, icon, color, amount, format }]
 //   checkAchievements(), won()
@@ -63,12 +64,21 @@ function updateResonance() {
     RESONANCE[m.key] = 1 + RESONANCE_STEP * n;
   }
 }
+// A save that is there but can't be used would be overwritten by a fresh game within seconds, so it is put aside
+// first (under its key + '_unread'), where it can still be rescued
 function loadMode(m) {
+  const text = readStored(m.saveKey);
   let raw = null;
   try {
-    raw = JSON.parse(readStored(m.saveKey));
+    raw = JSON.parse(text);
   } catch (e) {}
-  m.load(raw);
+  const usable = !!raw && typeof raw === 'object' && !Array.isArray(raw);
+  if (m.load(usable ? raw : null) === false || (text && !usable)) {
+    try {
+      localStorage.setItem(m.saveKey + '_unread', text);
+    } catch (e) {}
+    setTimeout(() => toast(`Your ${m.name} save couldn't be read, so this game started fresh. A copy of it was kept.`), 1500);
+  }
 }
 // Time away from a mode: it catches up at its offline rate. Returns what it made
 function awayGains(m) {
@@ -159,7 +169,7 @@ const APP_ACTIONS = {
     try {
       navigator.clipboard.writeText(t.value).catch(() => {});
     } catch (e) {}
-    toast('Save code copied. It holds both modes. Keep it somewhere safe.');
+    toast('Save code copied. It holds every mode. Keep it somewhere safe.');
   },
   importSave() {
     const t = $('sv');

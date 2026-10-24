@@ -164,7 +164,14 @@ const money = (n) => '₲' + fmt(n); // ₲: gold
 const duration = (s) =>
   s < 60 ? s.toFixed(s < 1 ? 2 : 1) + 's' : s < 3600 ? (s / 60).toFixed(1) + 'm' : s < 172800 ? (s / 3600).toFixed(1) + 'h' : (s / 86400).toFixed(1) + 'd';
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
-const plain = (n) => (n < 1e5 ? n.toLocaleString('en-US') : 1 + SUFFIXES[Math.round(Math.log10(n) / 3)]); // 1,000 · 10,000 · 1M · 1B
+// Round numbers in names and goals: 1,000 · 10,000 · 100K · 1M · 10Dc. Not only powers of 1,000: 1e5, 1e7 and 1e40
+// are goals too, and must not read as 1M, 1M and 1DDc
+function plain(n) {
+  if (!(n >= 1e5)) return n.toLocaleString('en-US');
+  let e = Math.floor(Math.log10(n) / 3 + 1e-9), m = +(n / 1e3 ** e).toFixed(2);
+  if (m >= 1e3) (e++, (m = +(m / 1e3).toFixed(2)));
+  return e < SUFFIXES.length ? m + SUFFIXES[e] : fmt(n);
+}
 const times = (n) => (n === 1 ? 'once' : n + ' times');
 
 // ===== Rendering building blocks =====
@@ -529,7 +536,7 @@ function mergeSave(fresh, raw) {
 }
 
 // ===== Pieces both modes build their content from =====
-const plural = (name) => (/y$/.test(name) ? name.slice(0, -1) + 'ies' : /(sh|ch|s|x)$/.test(name) ? name + 'es' : name + 's');
+const plural = (name) => (/works$/i.test(name) ? name : /y$/.test(name) ? name.slice(0, -1) + 'ies' : /(sh|ch|s|x)$/.test(name) ? name + 'es' : name + 's');
 const upgradeDef = ([id, name, desc, cost, fx]) => ({ id, name, desc, cost, fx }); // research, Dark Matter and rune upgrades
 const arcanaPrice = (n) => icon('flask', 14) + ' ' + count(n);
 const dmPrice = (n) => icon('spiral', 14) + ' ' + count(n);
@@ -579,7 +586,8 @@ function transmuteHint(p, dm, firstAt) {
   if (!p) return dm ? 'Nothing to gain from transmuting yet. Keep earning.' : `You can first transmute at ${money(firstAt)} earned.`;
   if (!dm) return `Your first transmutation gives +${count(p)} Dark Matter.`;
   const r = (dm + p) / dm;
-  return `Transmuting now multiplies your Dark Matter by ×${r < 1e3 ? r.toFixed(2) : fmt(r)}. ` + (r >= 2 ? 'Good time to transmute.' : 'Most players wait for ×2 or more.');
+  // dm counts spent Dark Matter too, so the ratio is of what you've earned, not of what's on hand
+  return `Transmuting now multiplies the Dark Matter you've earned (${count(dm)}) by ×${r < 1e3 ? r.toFixed(2) : fmt(r)}. ` + (r >= 2 ? 'Good time to transmute.' : 'Most players wait for ×2 or more.');
 }
 // Magnum Opus tab: the daily tribute and the elixir, then stats, then (as the second pane) achievements
 function bonusRows(s, dailyText, elixir, elixirText, boosted) {
@@ -619,7 +627,7 @@ function forgedPanel(s, what) {
 const newWorkCarry = (s) => ({
   stones: s.stones + 1, bestWork: s.bestWork ? Math.min(s.bestWork, workTime(s)) : workTime(s), workStart: s.playTime,
   achievements: s.achievements, taps: s.taps, playTime: s.playTime, bestIncome: s.bestIncome,
-  dailyReadyAt: s.dailyReadyAt, boostReadyAt: s.boostReadyAt,
+  dailyReadyAt: s.dailyReadyAt, boostReadyAt: s.boostReadyAt, boostEndsAt: s.boostEndsAt, // a running Elixir keeps running
 });
 
 // ===== Toasts and confirming taps =====

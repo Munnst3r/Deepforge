@@ -84,7 +84,7 @@ const PROJ=[
  {id:'core',name:'Deep Core bore',desc:'An endless project. Each stage adds 10% to ore prices in every mine. Stage 3 extends offline time to 36 h, stage 6 raises every equipment cap by 5 levels, stage 10 adds a sixth slot.',ingots:3000,cost:{bars:30000,crystal:30000,obsidian:30000,pearl:20000},repeat:1.35},
 ];
 const FEATS=[
- ['overtime',s=>s.st.hires>=1,'Overtime','Double all digging for a few minutes, free to call every 15 minutes.'],
+ ['overtime',s=>s.st.hires>=1,'Overtime','Double all digging for a few minutes, free to call again 15 minutes after it ends.'],
  ['events',s=>anyMine(m=>m.shafts.length>=2),'Mine events','Nuggets, cave-ins, rush orders and geodes turn up every few minutes in the mine you are watching. React to them for rewards.'],
  ['lab',s=>anyMine(m=>m.shafts.length>=3),'Assay lab','Pick a doctrine and research boosts for this claim in the Lab tab. Research resets with each new claim.'],
  ['refinery',s=>anyMine(m=>m.shafts.length>=3),'Refinery','Build a refinery on the warehouse to turn part of your ore into materials. Materials pay for projects and equipment in the Works tab.'],
@@ -204,19 +204,36 @@ const keptAfterWait=(k,T)=>k>0&&isFinite(T)?(k*T<1e-6?1:(1-Math.exp(-k*T))/(k*T)
 const heatCut=m=>Math.max(.55,1-.09*m.lab.sinks-.07*eq('coolant'));
 const heatRate=(m,s)=>4*(abOn(s,false)?2.5:1)*heatCut(m);
 const COOL=9,IDLE_COOL=6,VENT=35;
-function heatUptime(m){if(regOf(m).mech!=='heat')return 1;const hr=4*heatCut(m);const on=100/hr,off=100/COOL;return on/(on+off)}
+function heatUptime(m,s,st){if(regOf(m).mech!=='heat')return 1;const hr=4*(s&&abOn(s,st)?2.5:1)*heatCut(m);const on=100/hr,off=100/COOL;return on/(on+off)}
 const achCount=()=>Object.keys(S.ach).length;
 function value(m,st){let v=resonance('industrialist')*(m.mastered?1.5:1)*(1+.1*m.ingots)*(1+.1*m.lab.grade)*(1+.01*achCount())*(perk('crown')?3:1)*(1+.1*coreStages())*regOf(m).value;
   if(!st){if(S.clock<S.buff.surge)v*=2;if(S.clock<S.buff.lamp)v*=3}return v}
 /* steady-state flow of one mine. autoOnly: count only managed stages (idle/offline view). */
-/* ore the elevator moves per second. A car that fills before the bottom of its route turns back there, so when the
-   shafts above that stop make enough to fill it, its round trip is shorter (and the stops below it get nothing) */
-function eRate(m,st,autoOnly){const L=routeList(m);if(!L.length)return 0;const cap=eCap(m),c=cycle(m,st),up=heatUptime(m),s=eSpeed(m,st),T=eRound(m,st);let sup=0;
-  for(let j=0;j<L.length;j++){const i=L[j],sh=m.shafts[i],Tj=(2*(i+1)*floorTime(m)+(j+1)*loadTime(m))/s;if(!autoOnly||sh.mgr)sup+=shaftOut(m,i,st)/c*up*keptAfterWait(freezeK(m,i),T);if(sup*Tj>=cap)return cap/Tj}
-  return cap/T}
+/* ore the elevator moves per second. The car goes down its route and turns back as soon as it is full, so with a big car
+   it alternates short and long trips, and no single turning point describes it (assuming one made the rate fall ~40%
+   when the car grew past it, while the real elevator kept improving). So the trips themselves are run: a hundred of
+   them from empty deposits, timed as planElev times them, measured after the first twenty. Shafts deliver a batch
+   per dig cycle, as stepMine does: a batch near the car's size fills it at the first stop, which a smooth flow misses. When the elevator keeps up
+   with the shafts it isn't the limit, and it reports its capacity instead: the turning-point estimate, at least what
+   the shafts make. Results are memoized: the same mine asks many times a second */
+const eMemo=new Map();
+function eRate(m,st,autoOnly){const L=routeList(m);if(!L.length)return 0;const cap=eCap(m),c=cycle(m,st),s=eSpeed(m,st),T=eRound(m,st),f=floorTime(m)/s,l=loadTime(m)/s;
+  const bat=L.map(i=>{const sh=m.shafts[i];return!autoOnly||sh.mgr?shaftOut(m,i,st)*heatUptime(m,sh,st)*keptAfterWait(freezeK(m,i),T):0}),sup=bat.map(b=>b/c),tot=sup.reduce((a,b)=>a+b,0);
+  let cum=0,pS=0,pT=0,est=cap/T;
+  for(let j=0;j<L.length;j++){const Tj=(2*(L[j]+1)*floorTime(m)+(j+1)*loadTime(m))/s;cum+=sup[j];if(cum*Tj>=cap){est=Math.max(cap/Tj,j?Math.min(pS,cap/pT):0);break}pS=cum;pT=Tj}
+  if(!(tot>0))return est;
+  const key=cap+'|'+c+'|'+f+'|'+l+'|'+L.join()+'|'+bat.join();let R=eMemo.get(key);
+  if(R===undefined){const taken=bat.map(()=>0),has=(k,t)=>Math.floor(t/c+1e-9)*bat[k]-taken[k];let t=0,t0=0,got=0;
+    for(let n=0;n<100;n++){if(n===20)(t0=t),(got=0);
+      if(!bat.some((b,k)=>has(k,t)>0))t=(Math.floor(t/c+1e-9)+1)*c; // nothing dug yet: the car waits at the top
+      let load=0,end=0;
+      for(let k=0;k<L.length;k++){const at=(L[k]+1)*f+(k+1)*l,take=Math.max(0,Math.min(has(k,t+at),cap-load));taken[k]+=take;load+=take;end=at+(L[k]+1)*f;if(load>=cap*.999)break}
+      t+=end;got+=load}
+    R=got/(t-t0);if(eMemo.size>500)eMemo.clear();eMemo.set(key,R)}
+  return R<tot*.97?R:Math.max(est,tot)}
 function rates(m,autoOnly,st){
-  let sr=0;const c=cycle(m,st),L=routeList(m),up=heatUptime(m),T=eRound(m,st);
-  for(const i of L){const s=m.shafts[i];if(!autoOnly||s.mgr)sr+=shaftOut(m,i,st)/c*up*keptAfterWait(freezeK(m,i),T)}
+  let sr=0;const c=cycle(m,st),L=routeList(m),T=eRound(m,st);
+  for(const i of L){const s=m.shafts[i];if(!autoOnly||s.mgr)sr+=shaftOut(m,i,st)/c*heatUptime(m,s,st)*keptAfterWait(freezeK(m,i),T)}
   const er=(!autoOnly||m.E.mgr)&&isFinite(T)?eRate(m,st,autoOnly):0, wr=(!autoOnly||m.W.mgr)?wCap(m,st)/wTrip(m,st):0;
   const ore=Math.min(sr,er,wr),keep=1-m.split*(m.ref>0?1:0);
   return{sr,er,wr,ore,income:ore*value(m,st)*keep,gross:ore*value(m,st),bn:ore===sr?'Shafts':ore===er?'Elevator':'Warehouse'};
@@ -299,10 +316,12 @@ function stepMine(m,dt){
     while(E.k<P.stops.length&&E.t>=P.stops[E.k].done){const sh=m.shafts[P.stops[E.k].i];if(sh){const take=Math.min(sh.dep,Math.max(0,cap-E.load));sh.dep-=take;E.load+=take}E.k++;
       // a full car heads straight back up from here: the stops below are left for the next trip
       if(E.load>=cap*.999&&E.k<P.stops.length){const st=P.stops[E.k-1];P.stops=P.stops.slice(0,E.k);P.down=st.done;P.deep=st.i+1;P.total=P.down+P.deep*P.f}}
-    if(E.t>=P.total){S.st.eTrips++;emit('lift',{mi:m.i,load:E.load});E.t=-2;unloadElev(m)}}
+    if(E.t>=P.total){const over=E.t-P.total;S.st.eTrips++;emit('lift',{mi:m.i,load:E.load});E.t=-2;unloadElev(m);
+      // the time past the trip's end goes into the next one (dropping it made trips a step long and real income lag the shown rate)
+      if(E.t===-1&&E.mgr&&routeList(m).some(i=>m.shafts[i].dep>0)){startElev(m);E.t=Math.min(over,E.plan.total*.99)}}}
   const W=m.W;
   if(W.t<0&&W.mgr&&m.stock>0)startWh(m);
-  if(W.t>=0){W.t+=dt;if(W.t>=W.T){const l=W.load;W.load=0;W.t=-1;if(l>0)sell(m,l,W.T)}}
+  if(W.t>=0){W.t+=dt;if(W.t>=W.T){const over=W.t-W.T,l=W.load;W.load=0;W.t=-1;if(l>0)sell(m,l,W.T);if(W.mgr&&m.stock>0){startWh(m);W.t=Math.min(over,W.T*.99)}}}
 }
 function unloadElev(m){const E=m.E,room=Math.max(0,stockCap(m)-m.stock),put=Math.min(room,E.load);m.stock+=put;E.load-=put;
   if(E.load<=1e-9){E.load=0;E.t=-1;E.wait=0}else E.wait=1}
@@ -373,8 +392,8 @@ const act={
   view(i){const m=S.mines[i];if(!m||!m.open)return false;S.cur=i;emit('view',{mi:i});return true},
   craft(id){const d=EQUIP.find(x=>x.id===id);if(!d||!S.feat.works)return false;if((S.equip[id]||0)>=eqMax(d))return false;const c=equipCost(id);if(!canPay(c))return false;pay(c);S.equip[id]=(S.equip[id]||0)+1;
     if(S.equip[id]===1){const e=S.slots.indexOf(null);if(e>=0)S.slots[e]=id}emit('craft',{id,lvl:S.equip[id]});return true},
-  slot(id,idx){if(!S.equip[id])return false;if(idx<0||idx>=S.slots.length)return false;const prev=S.slots.indexOf(id);if(prev>=0)S.slots[prev]=null;S.slots[idx]=id;emit('slot',{id,idx});return true},
-  unslot(idx){if(idx<0||idx>=S.slots.length)return false;S.slots[idx]=null;return true},
+  slot(id,idx){if(!S.equip[id])return false;if(idx<0||idx>=S.slots.length)return false;const prev=S.slots.indexOf(id);if(prev>=0)S.slots[prev]=null;S.slots[idx]=id;trimRoutes();emit('slot',{id,idx});return true},
+  unslot(idx){if(idx<0||idx>=S.slots.length)return false;S.slots[idx]=null;trimRoutes();return true},
   project(id){const d=PROJ.find(x=>x.id===id);if(!d||projDone(id))return false;if(totalIngots()<d.ingots)return false;const c=projCost(id);if(!canPay(c))return false;pay(c);S.proj[id]=(S.proj[id]||0)+1;
     if(d.mine!=null){S.mines[d.mine].open=true;S.mines[d.mine].cash=Math.max(S.mines[d.mine].cash,500)}while(S.slots.length<slotCount())S.slots.push(null);emit('project',{id,stage:S.proj[id],mine:d.mine});return true},
 };
@@ -447,7 +466,7 @@ function spawnEvent(){const m=cur(),n=m.shafts.length,type=pickW(EVW),c={type,mi
   else if(type==='cave'){c.shaft=Math.floor(R()*n);c.need=4;c.until=S.clock+45;m.shafts[c.shaft].cave=1;c.reward=nice(Math.max(20,incomeNow(m)*30*charm()))}
   else if(type==='surge'){c.until=S.clock+60;S.buff.surge=c.until}
   else if(type==='rush'){c.target=nice(Math.max(30,rates(m,false,true).ore*75));c.until=S.clock+20;c.accepted=false;c.prog=0;c.reward=nice(Math.max(100,incomeNow(m)*120*charm()))}
-  else{c.need=6;c.until=S.clock+30;c.mat=m.ref?Math.ceil(matRate(m)*600):0}
+  else{c.need=6;c.until=S.clock+30;c.mat=m.ref?Math.ceil(matRate(m)*600*charm()):0}
   c.dur=c.until-S.clock;S.ev.cur=c;emit('event',{c});
   if(type==='surge'){S.st.events++;m.rs.events++;bump('events',1,m)}}
 function endEvent(handled){const c=S.ev.cur;if(!c)return;const m=S.mines[c.mi];
@@ -510,8 +529,10 @@ function load(o){
   clean(n);n.v=3;n.mines[0].open=true;if(!n.mines[n.cur]||!n.mines[n.cur].open)n.cur=0;
   for(const m of n.mines){if(!(m.life>0))m.life=m.ingots>0?CLAIM_MIN*Math.pow(m.ingots/4,1/CLAIM_P):0;for(const d of LAB)m.lab[d.id]=Math.max(0,Math.min(d.max,m.lab[d.id]|0));if(m.cash<0)m.cash=0;if(m.E.t!==-1&&!(m.E.plan&&m.E.plan.stops)){m.E.t=-1;m.E.load=0}}
   S=n;while(S.slots.length<slotCount())S.slots.push(null);S.slots=S.slots.slice(0,slotCount());
-  for(const m of S.mines)if(regOf(m).mech==='route'){const on=routeList(m);if(on.length>maxStops(m))on.slice(0,on.length-maxStops(m)).forEach(i=>m.shafts[i].route=0)}
+  trimRoutes();
   S.missions=(S.missions||[]).filter(x=>x&&x.type&&S.mines[x.mi]&&S.mines[x.mi].open);refill();return S}
+/* a route mine never has more stops on than it may: the shallowest come off first */
+function trimRoutes(){for(const m of S.mines)if(regOf(m).mech==='route'){const on=routeList(m);if(on.length>maxStops(m))on.slice(0,on.length-maxStops(m)).forEach(i=>m.shafts[i].route=0)}}
 /* ---------- upgrade value: income gained by one more level ---------- */
 function upgradeGain(m,k){const s=stageOf(m,k),before=rates(m,false,true).income;s.lvl++;const after=rates(m,false,true).income;s.lvl--;return before>0?after/before-1:0}
 function bestShaftUpgrade(m){let best=null;for(const i of routeList(m)){const k='s'+i,c=upInfo(m,k,'1').cost,g=upgradeGain(m,k);if(g>0&&(!best||g/c>best.g/best.c))best={k,c,g}}return best}
@@ -1219,7 +1240,7 @@ const Industrialist = (() => {
       h += G.LAB.filter((d) => !d.only || d.only === reg.mech)
         .map((d) => {
           const L = m.lab[d.id], c = G.labCost(m, d.id);
-          const right = L >= d.max ? owned_('Maxed') : G.labReady(m, d.id) ? btn('research', d.id, live(usd(c)), m.cash >= c) : owned_(`Shaft ${G.labShaft(m, d.id)}`);
+          const right = L >= d.max ? owned_('Maxed') : G.labReady(m, d.id) ? btn('research', d.id, live(usd(c)), m.cash >= c) : `<small>${icon('lock', 12)} Needs shaft ${G.labShaft(m, d.id)}</small>`; // a requirement, not a done mark
           return row(`${d.name}${d.only ? ` <i class="tag">${reg.short} only</i>` : ''}`, `${d.desc} · ${L} / ${d.max}`, right);
         })
         .join('');
@@ -1258,7 +1279,7 @@ const Industrialist = (() => {
         `<div class="row panel"><b>${icon('crown', 16)} ${reg.name}: ${num(m.ingots)} ingots</b>` +
         `<small>Stake a new claim to sell this mine and start it fresh. Cash, shafts, levels, research and the refinery reset; the managers of the first shaft, elevator and warehouse stay. Ingots stay forever and each adds 10% to ${reg.short} ore prices.</small>` +
         `<div class="bar">${liveBar(Math.min(100, ((m.run - prev) / (nx - prev)) * 100))}<span>${live(`${usd(m.run)} this claim · next ingot at ${usd(nx)}`)}</span></div></div>` +
-        bigButton('claim', armed === 'claim' ? 'Tap again to stake the claim' : g >= 1 ? `Stake a new claim for +${g} ingot${g > 1 ? 's' : ''}` : `Earn ${usd(G.CLAIM_MIN)} this claim to stake`, g >= 1);
+        bigButton('claim', armed === 'claim' ? 'Tap again to stake the claim' : g >= 1 ? `Stake a new claim for +${g} ingot${g > 1 ? 's' : ''}` : m.run >= G.CLAIM_MIN ? `Earn ${usd(nx)} this claim for the next ingot` : `Earn ${usd(G.CLAIM_MIN)} this claim to stake`, g >= 1);
       if (g >= 1) h += `<p class="hint">Ore here would sell at ×${((1 + 0.1 * (m.ingots + g)) / (1 + 0.1 * m.ingots)).toFixed(2)} the price it does now. ${(1 + 0.1 * (m.ingots + g)) / (1 + 0.1 * m.ingots) >= 1.5 ? 'Good time to stake.' : 'Most players wait for ×1.5 or more.'}</p>`;
       if (multi()) h += section('Ingots by mine') + openMines().map((x) => row(G.REGIONS[x.i].name, `${x.claims} claim${x.claims === 1 ? '' : 's'}`, `<b>${num(x.ingots)}</b>`, ' st')).join('');
       h += section('Charter perks') + tip('Pairs unlock as your ingots across all mines grow, and apply to every mine. A pick stays until your next claim in any mine.');
@@ -1447,6 +1468,7 @@ const Industrialist = (() => {
       const s = G.load(raw && typeof raw === 'object' ? raw : null);
       if (raw && typeof raw === 'object' && !raw.savedAt && raw.last > 0) s.savedAt = raw.last; // a save from before the app: its time away still counts
       useState(s);
+      return !G.loadInfo.fresh; // false: the save couldn't be used (the app keeps a copy)
     },
     fresh() {
       useState(G.fresh());
