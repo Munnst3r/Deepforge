@@ -115,17 +115,17 @@ const Communist = (() => {
   ].map(upgradeDef);
   // Paid in Dark Matter. Spending Dark Matter lowers its bonus
   const DM_UPGRADES = [
-    ['dark-surge', 'Dark Surge', 'Every industry ×2', 5, { out: 2 }],
-    ['shadow-crews', 'Shadow Crews', 'Every producer builds 50% faster', 100, { build: 1.5 }],
-    ['void-bargains', 'Void Bargains', 'Gold prices 20% lower', 2e3, { price: 0.8 }],
-    ['umbral-seal', 'Umbral Seal', 'Every industry ×3', 4e4, { out: 3 }],
-    ['deep-vault-labs', 'Deep Vault Labs', 'Research Labs ×2 Arcana', 8e5, { arcana: 2 }],
-    ['midas-touch', 'Midas Touch', 'Gold ×10', 1.6e7, { ind: [0, 10] }],
-    ['black-salt', 'Black Salt', 'Every industry ×5', 3e8, { out: 5 }],
-    ['red-banners', 'Red Banners', 'Every-tier milestones give ×1.75 instead of ×1.25', 1.5e9, { tierPower: 1.75 }],
-    ['void-pulse', 'Void Pulse', 'Every producer builds 50% faster', 6e9, { build: 1.5 }],
-    ['dark-bloom', 'Dark Bloom', 'Every industry ×8', 1.2e11, { out: 8 }],
-    ['abyssal-labs', 'Abyssal Labs', 'Research Labs ×3 Arcana', 2.5e12, { arcana: 3 }],
+    ['dark-surge', 'Dark Surge', 'Every industry ×2', 4, { out: 2 }],
+    ['shadow-crews', 'Shadow Crews', 'Every producer builds 50% faster', 30, { build: 1.5 }],
+    ['void-bargains', 'Void Bargains', 'Gold prices 20% lower', 300, { price: 0.8 }],
+    ['umbral-seal', 'Umbral Seal', 'Every industry ×3', 3e3, { out: 3 }],
+    ['deep-vault-labs', 'Deep Vault Labs', 'Research Labs ×2 Arcana', 3e4, { arcana: 2 }],
+    ['midas-touch', 'Midas Touch', 'Gold ×10', 3e5, { ind: [0, 10] }],
+    ['black-salt', 'Black Salt', 'Every industry ×5', 2.5e6, { out: 5 }],
+    ['red-banners', 'Red Banners', 'Every-tier milestones give ×1.75 instead of ×1.25', 8e6, { tierPower: 1.75 }],
+    ['void-pulse', 'Void Pulse', 'Every producer builds 50% faster', 2.5e7, { build: 1.5 }],
+    ['dark-bloom', 'Dark Bloom', 'Every industry ×8', 1e9, { out: 8 }],
+    ['abyssal-labs', 'Abyssal Labs', 'Research Labs ×3 Arcana', 2e10, { arcana: 3 }],
   ].map(upgradeDef);
 
   // ===== Research Lab: built with gold and Crystal, brews Arcana =====
@@ -222,12 +222,12 @@ const Communist = (() => {
     ['greatest-all', "Raise every industry's greatest producer", 3e7, () => INDUSTRIES.filter((d, i) => owned(i, d.tiers.length - 1) >= 1).length, IND],
     ['albedo', 'Complete the Albedo', 3e9, () => S.stage, 2],
     ['labs-250', 'Run 250 Research Labs', 1e11, () => S.labs, 250],
-    ['dm-1e9', 'Earn 1B Dark Matter', 5e11, () => S.darkMatter, 1e9],
+    ['dm-1e9', 'Earn 10M Dark Matter', 5e11, () => S.darkMatter, 1e7],
     ['research-25', 'Complete 25 research', 2e13, () => researchDone(), 25],
     ['steps-10', 'Complete 10 steps of the Great Work', 5e13, () => stepsDone(), 10],
     ['enchant-75', 'Cast 75 enchantments in one run', 1e14, () => enchantsCast(), 75],
     ['labs-600', 'Run 600 Research Labs', 2e14, () => S.labs, 600],
-    ['dm-1e12', 'Earn 1T Dark Matter', 3e14, () => S.darkMatter, 1e12],
+    ['dm-1e12', 'Earn 1B Dark Matter', 3e14, () => S.darkMatter, 1e9],
     ['enchant-90', 'Cast all 90 enchantments in one run', 5e14, () => enchantsCast(), 90],
     ['research-30', 'Complete every research', 1e15, () => researchDone(), RESEARCH.length],
   ].map(questDef);
@@ -243,7 +243,7 @@ const Communist = (() => {
   achievementTiers(ACHIEVEMENTS, [1e6, 1e9, 1e12, 1e15, 1e18, 1e21, 1e24, 1e30, 1e40], 'hoarder', (v) => 'Hoarder ₲' + plain(v), (v) => 'Earn ₲' + plain(v) + ' in total', (v) => S.totalEarned >= v);
   achievementTiers(ACHIEVEMENTS, [10, 30, 60, 90], 'enchanter', (v) => 'Enchanter ' + v, (v) => 'Cast ' + v + ' enchantments in one run', (v) => enchantsCast() >= v);
   achievementTiers(ACHIEVEMENTS, [1, 5, 10, 25], 'transmuter', (v) => 'Transmuter ' + v, (v) => 'Transmute ' + times(v), (v) => S.transmutes >= v);
-  achievementTiers(ACHIEVEMENTS, [10, 100, 1000, 10000, 1e6, 1e9, 1e12], 'dark-hoard', (v) => 'Dark Hoard ' + plain(v), (v) => 'Earn ' + plain(v) + ' Dark Matter', (v) => S.darkMatter >= v);
+  achievementTiers(ACHIEVEMENTS, [10, 100, 1000, 10000, 1e5, 1e7, 1e9], 'dark-hoard', (v) => 'Dark Hoard ' + plain(v), (v) => 'Earn ' + plain(v) + ' Dark Matter', (v) => S.darkMatter >= v);
   achievementTiers(ACHIEVEMENTS, [100, 1000, 10000], 'prospector', (v) => 'Prospector ' + plain(v), (v) => 'Pan by hand ' + plain(v) + ' times', (v) => S.taps >= v);
   achievementTiers(ACHIEVEMENTS, [1, 10, 100], 'devoted', (v) => 'Devoted ' + v + 'h', (v) => 'Play for ' + v + (v > 1 ? ' hours' : ' hour'), (v) => S.playTime >= v * 3600);
   achievementTiers(ACHIEVEMENTS, [5, 10, RESEARCH.length], 'scholar', (v) => 'Scholar ' + v, (v) => 'Complete ' + v + ' research', (v) => researchDone() >= v);
@@ -267,7 +267,7 @@ const Communist = (() => {
   const grid = () => INDUSTRIES.map((d) => Array(d.tiers.length).fill(0));
   function newState() {
     return {
-      v: 1,
+      v: 2,
       res: [10, 0, 0, 0, 0, 0], // gold and the five materials on hand (enough gold for a first Panner)
       units: grid(), // producers owned (fractions build up between whole ones)
       bought: grid(), // producers bought this run (raises their gold price)
@@ -318,6 +318,13 @@ const Communist = (() => {
     if (s.stage >= STAGES.length && !s.wonAt) s.wonAt = Math.max(1, s.playTime);
     s.enchants = s.enchants.map((n) => Math.max(0, Math.min(15, Math.floor(n))));
     for (const k of ['plan', 'nextPlan']) if (!PLANS.some((x) => x.id === s[k])) s[k] = 'balanced';
+    if (!(raw && raw.v >= 2)) {
+      // v1 paid Dark Matter by the cube root of gold, v2 by the fourth: same gold, rescaled count and upgrade prices
+      const spent = DM_UPGRADES.reduce((a, u) => a + (s.dmUpgrades[u.id] ? u.cost : 0), 0), free = Math.max(0, s.darkMatter - s.dmSpent);
+      s.darkMatter = Math.max(Math.floor(s.darkMatter ** 0.75), spent + Math.floor(free ** 0.75)); // owned upgrades stay paid for
+      s.dmSpent = spent;
+      s.v = 2;
+    }
     return s;
   }
 
@@ -439,10 +446,11 @@ const Communist = (() => {
   const nextEnchant = (i) => (S.enchants[i] < enchantMax() ? enchantRecipe(i, S.enchants[i]) : null);
   const canEnchant = (i) => S.open[i] && nextEnchant(i) && nextEnchant(i).every(([r, a]) => S.res[r] >= a);
 
-  // Transmuting: total Dark Matter grows with the cube root of all the gold you've ever earned (₲5B for the first)
-  const DM_SCALE = 5e9;
-  const dmFor = (gold) => Math.floor(Math.cbrt(gold / DM_SCALE));
-  const goldForDm = (n) => DM_SCALE * n ** 3;
+  // Transmuting: total Dark Matter grows with the fourth root of all the gold you've ever earned (₲5B for the first).
+  // Gold outgrows every other material by far, so a cube root let Dark Matter run away from the Forge's material costs
+  const DM_SCALE = 5e9, DM_ROOT = 4;
+  const dmFor = (gold) => Math.floor((gold / DM_SCALE) ** (1 / DM_ROOT) + 1e-9);
+  const goldForDm = (n) => DM_SCALE * n ** DM_ROOT;
   const transmuteReward = () => Math.max(0, dmFor(S.totalEarned) - S.darkMatter);
   const goodTransmute = () => {
     const p = transmuteReward();
@@ -834,7 +842,7 @@ const Communist = (() => {
         'transmute-help',
         'How transmuting works',
         `<p><b>Transmuting</b> melts down every producer, enchantment, Research Lab and industry you've discovered. Whatever materials you still hold pour into the Prime Crucible first, so nothing is wasted. You keep Arcana, research, quests, achievements, Dark Matter and everything in the crucible.</p>` +
-          `<p>Your total Dark Matter grows with the cube root of all the gold you've ever earned, so 1,000× the gold gives 10× the Dark Matter.</p>` +
+          `<p>Your total Dark Matter grows with the fourth root of all the gold you've ever earned, so 10,000× the gold gives 10× the Dark Matter.</p>` +
           `<p>Each Dark Matter adds +${Math.round(M.dmPer * 100)}% to every industry, up to 1,000 Dark Matter. Past that, the bonus grows with the cube root. Spending Dark Matter on upgrades lowers the bonus.</p><div class="mtable">${table}</div>`,
       );
       if (!S.darkMatter) return [h]; // Dark Matter upgrades and plans appear after the first transmutation
