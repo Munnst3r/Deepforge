@@ -7,8 +7,7 @@ function showEnding() {
   $('end').hidden = false;
 }
 
-// ===== Theme: each mode has its own fixed accent color (brass for Industrialist, lavender for Capitalist, dusty rose
-// for Communist), and the
+// ===== Theme: each mode has its own fixed accent color (brass for Industrialist, dusty rose for Communist), and the
 // surfaces take a faint tint of it =====
 function applyTheme(hex) {
   const r = parseInt(hex.slice(1, 3), 16) / 255, g = parseInt(hex.slice(3, 5), 16) / 255, b = parseInt(hex.slice(5, 7), 16) / 255;
@@ -95,7 +94,7 @@ function switchMode() {
 }
 
 // ===== Title screen: pick a mode, then tap anywhere to play it =====
-// The selector shows the three modes; picking one makes it the open mode right away (its name, earnings, line and
+// The selector shows the modes; picking one makes it the open mode right away (its name, earnings, line and
 // colors take over the title), and tapping anywhere else starts playing whichever mode is picked
 const titleAway = {}; // what each mode made while you were away, from its first catch-up since the app opened
 function showTitle() {

@@ -1,5 +1,5 @@
 // Pacing simulation: plays each mode headlessly with a simple greedy bot and prints when the big moments happen.
-// The bot is a steady active player: it buys what it can afford every few seconds, taps unmanaged mines, takes every
+// The bot is a steady active player: it buys what it can afford every few seconds, taps unmanaged shafts and stages, takes every
 // research and upgrade, and prestiges when the game's own badge says it's worth it. Real play will differ, but the
 // timeline shows whether a mode's pacing is in the right range and where it stalls.
 // Usage: node sim.js [hours=100] [mode=all] [page=index.html]   (needs Playwright with Chromium)
@@ -15,37 +15,6 @@ function bots() {
   const ids = (html, a) => [...html.matchAll(new RegExp(`data-a="${a}" data-i="([^"]+)"`, 'g'))].map((x) => x[1]);
   const paneHtml = (m) => Object.values(m.panes).map((f) => [].concat(f()).join('')).join('');
   const twice = (f) => (f(), f());
-
-  const capitalist = {
-    mode: () => MODES.capitalist,
-    decide(m) {
-      const A = m.actions, S = m.state;
-      for (let i = 0; i < S.level.length; i++) if (S.level[i] && !S.golems[i]) A.run(i);
-      A.summonAll();
-      A.upgradeAll();
-      const html = paneHtml(m);
-      for (const a of ['research', 'dmUpgrade', 'runeUpgrade', 'quest', 'catalyst']) for (const id of ids(html, a)) A[a](id);
-      for (let pass = 0; pass < 40; pass++) {
-        let any = false;
-        for (let i = 0; i < S.level.length; i++) {
-          const c = S.cash;
-          A.mode(10);
-          A.buy(i);
-          if (S.cash === c) A.mode(1), A.buy(i);
-          any = any || S.cash < c;
-        }
-        if (!any) break;
-      }
-      twice(A.finish);
-      if (m.badges.transmute(Date.now())) {
-        const a = S.ascensions;
-        twice(A.ascend);
-        if (S.ascensions === a) twice(A.transmute);
-      }
-    },
-    watch: (S) => ({ transmutes: S.transmutes, ascensions: S.ascensions, everyMine: S.allMs || 0, crucible: +!!S.crucibleBuilt, stone: +!!S.wonAt || S.stones }),
-    snap: (S) => `gold earned ${fmt(S.totalEarned)} · DM ${fmt(S.darkMatter)} · mines ${S.level.slice(0, 30).filter(Boolean).length}`,
-  };
 
   const communist = {
     mode: () => MODES.communist,
@@ -136,7 +105,7 @@ function bots() {
       return `ingots ${fmt(IndLogic.totalIngots())} · claims ${open.map((m) => m.claims).join('/')} · shafts ${open.map((m) => m.shafts.length).join('/')} · income ${open.map((m) => fmt(IndLogic.rates(m, false, true).income)).join('/')} · bn ${open.map((m) => IndLogic.rates(m, false, true).bn[0]).join('')}`;
     },
   };
-  return { capitalist, communist, industrialist };
+  return { communist, industrialist };
 }
 
 async function simulate(page, key, hours) {
@@ -168,7 +137,7 @@ async function simulate(page, key, hours) {
 
 (async () => {
   const browser = await chromium.launch(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : {});
-  for (const key of ['industrialist', 'capitalist', 'communist']) {
+  for (const key of ['industrialist', 'communist']) {
     if (ONLY !== 'all' && ONLY !== key) continue;
     const page = await browser.newPage();
     const errors = [];

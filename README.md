@@ -1,2 +1,2 @@
 # Deepforge
-Three idle games in one
+Two idle games in one

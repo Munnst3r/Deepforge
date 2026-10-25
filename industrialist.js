@@ -587,7 +587,7 @@ const Industrialist = (() => {
 
   // ===== Tutorial (the first two pages on the first visit; the whole guide from Settings) =====
   const TUTORIAL = [
-    ['Welcome to Industrialist', "<p>Run a mining company from one hillside shaft to four mines, each with twelve shafts and its own rules. Your mines keep running while you're away.</p><p>Move between tabs with the bar at the bottom, or swipe left and right anywhere below the top boxes.</p><p>Industrialist is one of the three modes of <b>Deepforge</b>. The button at the far right of the tab bar switches to the next one, <b>Capitalist</b>. Each mode is a separate game with its own progress, and each keeps producing while you play another.</p>"],
+    ['Welcome to Industrialist', "<p>Run a mining company from one hillside shaft to four mines, each with twelve shafts and its own rules. Your mines keep running while you're away.</p><p>Move between tabs with the bar at the bottom, or swipe left and right anywhere below the top boxes.</p><p>Industrialist is one of the two modes of <b>Deepforge</b>. The button at the far right of the tab bar switches to the other one, <b>Communist</b>. Each mode is a separate game with its own progress, and each keeps producing while you play the other.</p>"],
     ['The production chain', '<p>Tap a <b>shaft</b>’s bar to dig ore into its deposit. Tap the <b>elevator</b> to bring the ore up to the stockpile, and the <b>warehouse</b> to haul it to market.</p><p>Income is set by the slowest of the three: the strip at the top of the Mine tab shows which one is holding you back. <b>Hire a manager</b> for a stage and it runs on its own, offline too.</p>'],
     ['Managers', '<p>Each manager is <b>active</b> (an ability you tap for a burst) or <b>passive</b> (a smaller bonus that always works, offline included). Once a mine has four shafts, tap a manager’s stars to promote them to Senior or Chief. You can retrain them later.</p><p>Shaft levels 10, 25, 50, 100 and up double that shaft’s output.</p>'],
     ['Lab and refinery', '<p>With three shafts open, each mine gets a <b>lab</b>: pick a doctrine and research boosts. Both reset with each new claim.</p><p>The <b>refinery</b> on the warehouse turns a share of your ore into materials. Materials pay for new mines and equipment in the <b>Works</b> tab.</p>'],
@@ -1015,7 +1015,7 @@ const Industrialist = (() => {
   };
   const center = (r) => [r.left + r.width / 2, r.top + r.height / 2];
   // ----- Production feedback: every stage says so when it finishes a cycle -----
-  // A floating number rises from the stage that made something (the same one Capitalist uses), only when the cycle
+  // A floating number rises from the stage that made something (the same one Communist uses), only when the cycle
   // really produced. Stages that cycle faster than it can be read just show fewer
   const calm = () => reducedMotion || !settings.effects;
   const produce = (bar, text, color, key) => Polish.pop(bar && bar.parentElement, text, color, 'i' + key, false, 'pl');
@@ -1501,6 +1501,6 @@ const Industrialist = (() => {
     stone,
     titleLine,
     ending: () => ({ title: '', text: '', stats: [] }),
-    deleteNote: 'Erases all Industrialist progress. Capitalist and Communist are not affected.',
+    deleteNote: 'Erases all Industrialist progress. Communist is not affected.',
   };
 })();

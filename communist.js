@@ -16,6 +16,7 @@ const Communist = (() => {
     { name: 'Aether', color: '#9cc5c0', icon: 'sparkles', tiers: ['Aether Tapper', 'Aether Well', 'Leyline Nexus', 'Aether Font', 'Celestial Loom'] },
   ];
   const IND = INDUSTRIES.length;
+  const ARCANA_COLOR = '#93c4bd';
   const GOLD = 0, CRYSTAL = 3; // gold is the coin everything is bought with; crystal builds Research Labs
   const TIER_ICONS = [null, 'tent', 'factory', 'castle', 'crown', 'landmark']; // tier 0 uses its industry's icon
   // Each industry's top producer is a work of the Great Work: it can only be built once the Nigredo is complete
@@ -685,7 +686,7 @@ const Communist = (() => {
   };
   // ===== Tutorial (shown the first time you open this mode) =====
   const TUTORIAL = [
-    ['Welcome to Communist', "<p>Build a mining empire where every material feeds the next, and offer them all to the <b>Prime Crucible</b> to forge the Philosopher's Stone.</p><p>Move between tabs with the bar at the bottom, or swipe left and right anywhere below the top boxes.</p><p>New systems explain themselves as they open, and the whole guide is in <b>Settings</b> at the bottom of the Magnum Opus tab.</p><p>Communist is one of the three modes of <b>Deepforge</b>. The button at the far right of the tab bar switches to the next one, <b>Industrialist</b>. Each mode is a separate game with its own progress, and each keeps producing while you play another.</p>"],
+    ['Welcome to Communist', "<p>Build a mining empire where every material feeds the next, and offer them all to the <b>Prime Crucible</b> to forge the Philosopher's Stone.</p><p>Move between tabs with the bar at the bottom, or swipe left and right anywhere below the top boxes.</p><p>New systems explain themselves as they open, and the whole guide is in <b>Settings</b> at the bottom of the Magnum Opus tab.</p><p>Communist is one of the two modes of <b>Deepforge</b>. The button at the far right of the tab bar switches to the other one, <b>Industrialist</b>. Each mode is a separate game with its own progress, and each keeps producing while you play the other.</p>"],
     ['Production chains', "<p>On the <b>Works</b> tab, buy a <b>Panner</b>: Panners pan gold on their own. Tap <b>Pan by hand</b> to speed up the start.</p><p>Every producer builds more of the one below it. A <b>Prospector Camp</b> keeps making Panners, a <b>Gold Mine</b> keeps making Prospector Camps, and so on up the chain. Buying a bigger producer uses up 10 of the one below it, so your early producers never stop mattering.</p>"],
     ['Materials feed each other', '<p>Discover <b>Copper</b>, then <b>Iron</b>, <b>Crystal</b>, <b>Mithril</b> and <b>Aether</b>. Each has its own chain on the Works tab.</p><p>Each industry needs the one before it: Iron producers are built with Copper, Crystal ones with Iron, and so on. Gold needs them too: Prospector Camps need Copper and Gold Mines need Iron. If a price chip is red, that material is what you’re short of.</p>'],
     ['The Forge', "<p><b>Enchantments</b> triple an industry's output. They combine materials, so you'll need gold plus one or two others. Each industry has ten, cast in order on the <b>Forge</b> tab, and the Albedo adds five more.</p>"],
@@ -1008,7 +1009,7 @@ const Communist = (() => {
   }
   // ===== Production feedback: floating numbers where things are being made =====
   // Production here is a steady flow, so every working producer on screen fires its own number once a second, showing
-  // what it made in that second (the same floating number Capitalist uses). Each keeps its own clock, started at a
+  // what it made in that second (the same floating number Industrialist uses). Each keeps its own clock, started at a
   // random point, so they pop independently instead of taking turns. Nothing is added to the simulation: the numbers
   // come from the rates it already uses, and only while a rate is above zero
   const POP_EVERY = 1000;
@@ -1176,6 +1177,6 @@ const Communist = (() => {
     stone,
     titleLine,
     ending,
-    deleteNote: 'Erases all Communist progress. Industrialist and Capitalist are not affected.',
+    deleteNote: 'Erases all Communist progress. Industrialist is not affected.',
   };
 })();

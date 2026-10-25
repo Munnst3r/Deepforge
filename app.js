@@ -18,9 +18,8 @@
 //   hints            one-time cards that explain a system the moment it becomes relevant: [{ id, when(), title, text, tab }]
 //   introPages       how many tutorial pages to show on the first visit (the rest are in the full guide in Settings)
 //   strip()          optional: a live line under the top boxes for things that need attention on every tab (events)
-// The modes in their fixed order. The switch button always goes to the next one: Industrialist → Capitalist →
-// Communist → Industrialist
-const MODES = { industrialist: Industrialist, capitalist: Capitalist, communist: Communist };
+// The modes in their fixed order. The switch button always goes to the next one: Industrialist ⇄ Communist
+const MODES = { industrialist: Industrialist, communist: Communist };
 const MODE_LIST = Object.values(MODES);
 // Which modes are switched on lives in settings.modes, the one place the title menu and the in-game Settings both use.
 // There is always at least one on; a mode that is off is skipped everywhere (switch button, title picker)
@@ -521,7 +520,7 @@ function renderPane() {
   }
 }
 // Full render: after actions and tab changes. The main loop renders the open tab about three times a second
-// (tabs a mode draws itself, like Capitalist Mode's mines, every tick)
+// (tabs a mode draws itself, like Industrialist's mine, every tick)
 let shownTab = '';
 function render(full) {
   renderHeader();

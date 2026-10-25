@@ -1,6 +1,6 @@
 # Deepforge
 
-Static web idle game: three separate modes (Industrialist → Capitalist → Communist) in one app. Plays only on an iPhone 17 Pro Max as a Home Screen web app. No build step, no dependencies; open `index.html`.
+Static web idle game: two separate modes (Industrialist ⇄ Communist) in one app. (A third, Capitalist, was removed; old `df_capitalist` saves are left untouched and ignored.) Plays only on an iPhone 17 Pro Max as a Home Screen web app. No build step, no dependencies; open `index.html`.
 
 ## Files (all at the repo root, so the repo can be updated from an iPhone; script load order = order in index.html; one shared global scope)
 | File | Contents |
@@ -9,21 +9,21 @@ Static web idle game: three separate modes (Industrialist → Capitalist → Com
 | `style.css` | All styles, embedded fonts |
 | `core.js` | Title screen, helpers (`$`, `icon`, `fmt`, `plain`, `money`), storage, settings, PixBar, save merging, shared row builders, toasts, `Polish` animations |
 | `industrialist.js` | `IndLogic` (rules, minified style) + `Industrialist` (UI module) |
-| `capitalist.js` | `Capitalist` module (30 mines, golems, research, transmute/ascend, trials) |
 | `communist.js` | `Communist` module (6 industries of production chains, plans, Great Work) |
 | `app.js` | MODE INTERFACE doc (top of file), saving, shared actions, input, swipe, tutorial, hints, frame (tab bar, top boxes, panes), cinematics |
-| `gems.js` | `StoneView`: 3D gem on each mode's last tab (`GEMS_IND`, `GEMS`, `GEMS_COM`) |
+| `gems.js` | `StoneView`: 3D gem on each mode's last tab (`GEMS_IND`, `GEMS_COM`) |
 | `main.js` | Ending, mode switching, title picker, start-up + main loop, `Motes` background, iOS viewport fixes |
 | `sim.js` | Headless pacing simulation (`node sim.js`) |
 | `test.js` | Regression tests: formulas, purchases, prestige, saves and time away (`node test.js`) |
 
 ## Architecture
 - Each mode is a closed IIFE with its own state `S` and modifiers `M` (rebuilt by `refresh()`); the app only uses the returned object (see MODE INTERFACE in `app.js`).
+- Modes are listed once, in `MODES` (app.js); everything else (switch button, title picker, export) iterates `MODE_LIST`.
 - Saves: one localStorage slot per mode + settings; `migrate()` per mode merges onto `newState()`, so new state fields need only a default there.
 - Upgrade lists (research, Dark Matter, runes) use stable string ids; never rename an id (saves and claimed quests key on it).
-- Run-scoped milestone latches: Capitalist `S.allMs`, Communist `S.tierMs[i]`, Industrialist `m.allMil` (reset with the run/claim).
-- Only cross-mode link: Resonance. `updateResonance()` (app.js) sets `RESONANCE[key]` = 1 + 5% × gem designs unlocked in the other modes; each mode multiplies its output by `resonance(key)` (core.js).
-- Prestige rewards are always "total earned minus already held" (Dark Matter, Elder Runes), so repeating a reset gives nothing; keep it that way to avoid snowball loops.
+- Run-scoped milestone latches: Communist `S.tierMs[i]`, Industrialist `m.allMil` (reset with the run/claim).
+- Only cross-mode link: Resonance. `updateResonance()` (app.js) sets `RESONANCE[key]` = 1 + 5% × gem designs unlocked in the other mode; each mode multiplies its output by `resonance(key)` (core.js).
+- Prestige rewards are always "total earned minus already held" (Dark Matter), so repeating a reset gives nothing; keep it that way to avoid snowball loops.
 
 ## Conventions
 - Comments explain why, not what. Keep numbers/balance in the constant tables at the top of each mode.

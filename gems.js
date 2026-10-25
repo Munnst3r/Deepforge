@@ -2,7 +2,7 @@
 // Each mode's end goal stands in a golden alchemist's sigil (a circle with a triangle in it), with orbs of light
 // circling it and its own atmosphere behind. Each has several designs, unlocked by milestones in that mode:
 // all of them gems: tall faceted stones that turn slowly, some with rings, shards or cracks of fire.
-//   Industrialist: twelve, raw ore to sovereign gold · Capitalist: twelve · Communist: six, one per Great Work stage
+//   Industrialist: twelve, raw ore to sovereign gold · Communist: six, one per Great Work stage
 // Drawn on a canvas as real low-poly 3D (meshes rotated, lit and painted back to front) with a bloom pass for
 // everything that glows. The mode says which family and design to show, how bright, how full, and which orbs circle
 // it (mode.stone()). It only animates while its tab is open.
@@ -496,101 +496,6 @@ const StoneView = (() => {
     return objs;
   }
   const shards = (n, col, r = 1.55, o = {}) => orbiters((c) => paint(shard(c, 0.06 + rnd() * 0.06, 0.12 + rnd() * 0.12, rnd() * 3), col, { e: o.e ?? 0.2, edge: o.edge, ea: 0.6 }, 0.2), n, r, o.yc ?? -0.1, { ys: o.ys ?? 1.6, speed: o.speed ?? 0.15 });
-  const GEMS = [
-    {
-      name: 'Pure', tags: 'Clean · Classic · Simple', bg: [[110, 100, 90], [90, 80, 70]], star: [255, 240, 220],
-      build: () => gemScene({ col: [226, 230, 238], edge: [232, 192, 110], deep: [60, 60, 70], core: [255, 255, 255], e: 0.1, spine: true }),
-      gfx: (g) => twinkles(g, [255, 240, 210], 6, 1.5, 1.2, 0),
-    },
-    {
-      name: 'Rose Quartz', tags: 'Warm · Soft · Pure', bg: [[170, 70, 110], [120, 50, 90]], star: [255, 210, 230],
-      build: () => gemScene({
-        col: [246, 140, 172], edge: [255, 214, 228], deep: [90, 30, 60],
-        extra: (objs) => objs.push(...ring([0, -1.42, 0], 0.32, 0.25, 0, 0.016, [240, 200, 120], { spin: 0.4, sep: 0.5, glow: 0.6 })),
-      }),
-      gfx: (g) => twinkles(g, [255, 220, 235], 8, 1.5, 1.2, 0),
-    },
-    {
-      name: 'Ice Vein', tags: 'Cold · Sharp · Clean', bg: [[40, 120, 150], [30, 80, 110]], star: [210, 245, 255],
-      build: () => gemScene({ col: [120, 216, 236], edge: [225, 250, 255], deep: [20, 60, 80], extra: (objs) => objs.push(...shards(7, [150, 230, 250], 1.45, { e: 0.35, edge: [230, 250, 255] })) }),
-      gfx: (g) => twinkles(g, [220, 250, 255], 10, 1.6, 1.2, 0),
-    },
-    {
-      name: 'Nature', tags: 'Organic · Lush · Life', bg: [[40, 130, 70], [30, 90, 50]], star: [200, 255, 210],
-      build: () => gemScene({
-        col: [72, 204, 104], edge: [200, 255, 210], deep: [10, 50, 25],
-        extra: (objs) => objs.push(...orbiters((c) => {
-          const leaf = [add(c, [0, -0.16, 0]), add(c, [0.08, 0, 0.03]), add(c, [0, 0.12, 0]), add(c, [-0.08, 0, -0.03])];
-          return [{ p: leaf, c: vary([90, 180, 70], 0.25), ds: true, amb: 0.5 }];
-        }, 9, 1.4, -0.1, { ys: 1.8, speed: 0.2 })),
-      }),
-      gfx: (g) => embers(g, [180, 255, 160], 12, -1.2, 1.2, 1.2, 2.6, 0.9),
-    },
-    {
-      name: 'Fractured', tags: 'Broken · Sharp · Chaotic', bg: [[40, 90, 170], [30, 60, 130]], star: [190, 220, 255],
-      build: () => gemScene({ col: [84, 158, 236], edge: [205, 232, 255], deep: [16, 40, 90], fracture: true, extra: (objs) => objs.push(...shards(14, [100, 170, 240], 1.25, { e: 0.3, edge: [210, 235, 255], speed: 0.3 })) }),
-      gfx: (g) => twinkles(g, [180, 220, 255], 10, 1.6, 1.2, 0),
-    },
-    {
-      name: 'Ember', tags: 'Hot · Volcanic · Destructive', bg: [[160, 40, 20], [110, 30, 20]], star: [255, 180, 130],
-      build: () => gemScene({ col: [222, 64, 42], edge: [255, 170, 120], deep: [60, 8, 4], core: [255, 200, 120], cracks: { n: 6, col: [255, 140, 40], hot: [255, 230, 150] } }),
-      gfx: (g) => embers(g, [255, 120, 40], 24, -1.2, 1.2, 1.0, 2.8, 1.1),
-    },
-    {
-      name: 'Shadow Core', tags: 'Dark · Energetic · Unstable', bg: [[30, 90, 70], [30, 50, 50]], star: [180, 255, 220],
-      build: () => gemScene({ col: [56, 62, 68], edge: [110, 130, 130], deep: [8, 10, 12], core: [80, 255, 180], coreR: 0.6, e: 0.05, cracks: { n: 7, col: [70, 255, 170], hot: [210, 255, 230] }, extra: (objs) => objs.push(...shards(6, [60, 66, 72], 1.5, { e: 0, edge: [110, 140, 130] })) }),
-      gfx: (g) => embers(g, [90, 255, 180], 10, -1.0, 1.0, 1.0, 2.6, 0.9),
-    },
-    {
-      name: 'Void', tags: 'Dark · Mysterious · Powerful', bg: [[90, 30, 140], [60, 20, 100]], star: [230, 180, 255],
-      build: () => gemScene({
-        col: [86, 48, 120], edge: [210, 130, 255], deep: [20, 6, 34], core: [230, 120, 255],
-        extra(objs) {
-          objs.push(...ring([0, 0.05, 0], 1.45, 0.45, -0.12, 0.03, [240, 110, 236], { glow: 1, spin: 0.3 }));
-          objs.push(...shards(7, [70, 40, 100], 1.7, { e: 0.1, edge: [190, 120, 255] }));
-        },
-      }),
-      gfx: (g) => twinkles(g, [230, 160, 255], 10, 1.6, 1.2, 0),
-    },
-    {
-      name: 'Ascendant', tags: 'Regal · Focused · Divine', bg: [[170, 60, 30], [150, 100, 40]], star: [255, 220, 170],
-      build: () => gemScene({
-        col: [236, 76, 58], edge: [255, 204, 150], deep: [70, 10, 6], core: [255, 220, 160], spine: true, shape: { top: 1.25 },
-        extra: (objs) => objs.push({ faces: paint(prism([0, -1.95, 0], [0, -1, 0], 0.07, 0.05, 0.28, 4), [255, 206, 110], { e: 0.8 }, 0), glows: [{ p: [0, -2.05, 0], r: 0.4, col: [255, 200, 110], a: 0.8 }], at: [0, -2, 0] }),
-      }),
-      gfx: (g) => twinkles(g, [255, 220, 150], 10, 1.5, 1.3, -0.2),
-    },
-    {
-      name: 'Orbital', tags: 'Cosmic · Balanced · Noble', bg: [[170, 120, 30], [130, 90, 30]], star: [255, 230, 170],
-      build: () => gemScene({
-        col: [246, 196, 92], edge: [255, 242, 196], deep: [90, 50, 10], core: [255, 250, 220],
-        extra(objs) {
-          objs.push(...ring([0, -0.05, 0], 1.45, 0.3, 0.2, 0.03, [250, 206, 110], { spin: 0.35, dots: 4 }));
-          objs.push(...ring([0, -0.05, 0], 1.32, 0.3, -0.35, 0.024, [250, 206, 110], { spin: -0.28 }));
-        },
-      }),
-      gfx: (g) => twinkles(g, [255, 236, 180], 10, 1.6, 1.2, 0),
-    },
-    {
-      name: 'Ether', tags: 'Mystic · Arcane · Otherworldly', bg: [[110, 70, 180], [80, 50, 140]], star: [220, 200, 255],
-      build: () => gemScene({
-        col: [160, 116, 232], edge: [232, 206, 255], deep: [34, 14, 70], core: [236, 210, 255],
-        extra: (objs) => objs.push(...ring([0, -0.05, 0], 1.42, 0.45, 0.1, 0.04, [196, 140, 255], { spin: 0.25, glow: 1 })),
-      }),
-      gfx: (g) => twinkles(g, [220, 200, 255], 12, 1.6, 1.2, 0),
-    },
-    {
-      name: 'Celestial', tags: 'Radiant · Ethereal · Infinite', bg: [[140, 110, 200], [170, 130, 70]], star: [255, 240, 220],
-      build: () => gemScene({
-        col: [198, 178, 246], edge: [255, 240, 210], deep: [40, 24, 80], core: [255, 250, 240], e: 0.25,
-        extra(objs) {
-          objs.push(...ring([0, -0.1, 0], 1.48, 0.32, 0.22, 0.026, [246, 206, 112], { spin: 0.3, dots: 6, dotCol: [255, 244, 210] }));
-          objs.push(...ring([0, 0.0, 0], 1.32, 0.28, -0.25, 0.018, [246, 206, 112], { spin: -0.24 }));
-        },
-      }),
-      gfx: (g) => twinkles(g, [255, 236, 190], 18, 1.8, 1.4, 0, 1.3),
-    },
-  ];
   // Industrialist: twelve gems, from raw ore to the sovereign's gold, as the mines grow
   const GEMS_IND = [
     {
@@ -728,8 +633,8 @@ const StoneView = (() => {
       gfx: (g) => twinkles(g, [255, 230, 210], 20, 1.8, 1.4, 0, 1.3),
     },
   ];
-  const FAMILIES = { ind: GEMS_IND, gem: GEMS, com: GEMS_COM };
-  const FAMILY_SEED = { ind: 3, gem: 9, com: 5 };
+  const FAMILIES = { ind: GEMS_IND, com: GEMS_COM };
+  const FAMILY_SEED = { ind: 3, com: 5 };
 
   // the scene for the design on show, built once (seeded, so it's the same every time) and again when it changes
   let built = { key: '', objs: [] };
@@ -738,8 +643,8 @@ const StoneView = (() => {
   function draw(dt) {
     setup();
     if (!W) return;
-    look = mode.stone(); // { family: 'ind' | 'gem' | 'com', style, next, fill: 0–1, orbs }
-    const list = FAMILIES[look.family] || GEMS, idx = Math.max(0, Math.min(list.length - 1, look.style | 0)), D = list[idx];
+    look = mode.stone(); // { family: 'ind' | 'com', style, next, fill: 0–1, orbs }
+    const list = FAMILIES[look.family] || GEMS_IND, idx = Math.max(0, Math.min(list.length - 1, look.style | 0)), D = list[idx];
     const fill = look.fill;
     clock += dt;
     spin += dt * 0.04;
@@ -825,6 +730,6 @@ const StoneView = (() => {
       } else if (!animate) running = false;
     },
     // for the design preview tool: how many designs each family has
-    counts: () => ({ ind: GEMS_IND.length, gem: GEMS.length, com: GEMS_COM.length }),
+    counts: () => ({ ind: GEMS_IND.length, com: GEMS_COM.length }),
   };
 })();

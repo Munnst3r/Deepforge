@@ -55,103 +55,6 @@ const TESTS = {
     t.eq(plural('Foundry'), 'Foundries');
   },
 
-  // ----- Capitalist -----
-  'Capitalist: level prices are the sum of each level, charged once': (t) => {
-    const C = MODES.capitalist;
-    C.load({ cash: 1e6 });
-    C.refresh();
-    // Clay Pit: ₲4, ×1.07 per level owned
-    const each = (L) => 4 * 1.07 ** L;
-    let sum10 = 0;
-    for (let L = 0; L < 10; L++) sum10 += each(L);
-    C.actions.mode(10);
-    C.actions.buy(0);
-    t.eq(C.state.level[0], 10, 'levels bought');
-    t.near(C.state.cash, 1e6 - sum10, 'cash after ×10', 1e-12);
-    // Max: as many as the gold covers, and not one more
-    C.actions.mode('max');
-    let L = 10, cash = C.state.cash;
-    while (cash >= each(L)) cash -= each(L++);
-    C.actions.buy(0);
-    t.eq(C.state.level[0], L, 'levels from Max');
-    t.ok(C.state.cash >= 0 && C.state.cash < each(L) * (1 + 1e-9), 'Max leaves less than one more level');
-    // failed purchase changes nothing
-    const before = JSON.stringify(C.state);
-    C.actions.mode(1);
-    C.state.cash = 0;
-    const snap = JSON.stringify(C.state);
-    C.actions.buy(0);
-    t.eq(JSON.stringify(C.state), snap, 'an unaffordable buy changed state');
-    t.ok(before !== snap);
-  },
-  'Capitalist: a mine not open to you yet cannot be bought or look buyable': (t) => {
-    const C = MODES.capitalist;
-    C.load({ cash: 1e6 }); // Head Start money on a fresh run: the Iron Mine needs a Copper Seam first
-    C.refresh();
-    C.actions.mode(1);
-    C.actions.buy(2);
-    t.eq(C.state.level[2], 0, 'Iron Mine bought without a Copper Seam');
-    t.eq(C.state.cash, 1e6);
-    C.actions.buy(1); // Copper needs a Clay Pit
-    t.eq(C.state.level[1], 0, 'Copper Seam bought without a Clay Pit');
-    C.renderTab('mines');
-    const copper = [...document.querySelectorAll('#capMines [data-a="buy"]')].find((b) => b.dataset.i === '1');
-    t.ok(copper && copper.classList.contains('dis'), 'Copper Seam button looks buyable');
-  },
-  'Capitalist: Dark Matter and runes pay only what is new': (t) => {
-    const C = MODES.capitalist;
-    // ₲2B this ascension = 1 Dark Matter (cube root); 1,000× that = 10
-    C.load({ lifetimeEarned: 2e12 });
-    C.refresh();
-    t.ok(/\+10\b/.test(C.panes.transmute()[0]), 'transmute button offers +10');
-    C.load({ lifetimeEarned: 2e12, darkMatter: 10 });
-    C.refresh();
-    t.ok(/Nothing to transmute yet/.test(C.panes.transmute()[0]), 'transmuting again pays the same Dark Matter twice');
-    // after an ascension worth 21 runes, the next rune needs 400 × (22/10)^(1/0.3) ≈ 5,540 Dark Matter, not 400
-    C.load({ runes: 21, ascensions: 1, darkMatter: 5000, dmEarnedAll: 5000 });
-    C.refresh();
-    const h = C.panes.transmute()[0];
-    t.ok(/beats your best/.test(h) && h.includes(count(400 * 2.2 ** (1 / 0.3))), 'ascension hint names the real threshold');
-    t.ok(!/Ascension unlocks at 400/.test(h), 'still says it unlocks at 400');
-  },
-  'Capitalist: damaged enchantment counts are repaired on load': (t) => {
-    const C = MODES.capitalist;
-    C.load({ level: [5], upgrades: [12.5], golems: [1], running: [1], allMs: 99 });
-    C.refresh();
-    t.eq(C.state.upgrades[0], 10);
-    t.eq(C.state.allMs, 11);
-    C.tick(1);
-    t.ok(Number.isFinite(C.state.cash), 'gold became NaN');
-  },
-  'Capitalist: Stone designs stay unlocked in a new Great Work': (t) => {
-    const C = MODES.capitalist;
-    C.load({ stones: 1 }); // a new Work: transmutes, ascensions and the crucible are reset
-    C.refresh();
-    t.eq(C.stone().style, 10);
-  },
-  'Capitalist: buying a rune upgrade only hands out its own golems': (t) => {
-    const C = MODES.capitalist;
-    const lvl = Array(31).fill(1);
-    C.load({ level: lvl, runes: 100, trials: { 'lone-golem': 1 } }); // the trial's reward: every golem at the start of a run
-    C.refresh();
-    C.actions.runeUpgrade('rune-of-plenty');
-    t.eq(C.state.golems.filter(Boolean).length, 0, 'golems from an unrelated rune upgrade');
-    C.actions.runeUpgrade('bound-golems');
-    t.eq(C.state.golems.filter(Boolean).length, 5, 'Bound Golems gives the first five');
-  },
-
-  'Capitalist: an upgrade whose Dark Matter costs more than it gives never shows a negative gain': (t) => {
-    const C = MODES.capitalist, level = Array(31).fill(0);
-    level[0] = 10;
-    level[30] = 10; // the Research Lab
-    C.load({ level, darkMatter: 17500, dmEarnedAll: 17500, transmutes: 3 });
-    C.refresh();
-    const all = Object.values(C.panes).map((f) => [].concat(f()).join('')).join('');
-    t.ok(!all.includes('+-'), 'a "+-" gain is shown');
-    t.ok(all.includes('costs more bonus than it gives'), 'Deep Vault Labs should say it costs more than it gives');
-  },
-
-  // ----- Industrialist -----
   'Industrialist: a managed mine earns what its income line says': (t) => {
     const G = IndLogic;
     G.fresh();
@@ -275,51 +178,50 @@ const HOUR = 3600e3;
 const PAGE_TESTS = {
   'an unreadable save is kept, not overwritten': async (ctx) => {
     const page = await open(ctx, () => {
-      localStorage.setItem('df_capitalist', '{"cash": 12, broken');
+      localStorage.setItem('df_communist', '{"res": 12, broken');
       localStorage.setItem('df_industrialist', JSON.stringify({ v: 99, mines: [] })); // a version this build can't read
     });
     await page.evaluate(() => saveNow());
-    const r = await page.evaluate(() => [localStorage.getItem('df_capitalist_unread'), localStorage.getItem('df_industrialist_unread'), localStorage.getItem('df_communist_unread')]);
+    const r = await page.evaluate(() => [localStorage.getItem('df_communist_unread'), localStorage.getItem('df_industrialist_unread')]);
     const f = [];
-    if (r[0] !== '{"cash": 12, broken') f.push('Capitalist copy missing: ' + r[0]);
+    if (r[0] !== '{"res": 12, broken') f.push('Communist copy missing: ' + r[0]);
     if (!r[1] || JSON.parse(r[1]).v !== 99) f.push('Industrialist copy missing: ' + r[1]);
-    if (r[2] !== null) f.push('a readable (absent) save was copied');
     return f.concat(page.errors);
   },
   'time away is paid once, at the offline rate': async (ctx) => {
-    // Clay Pit ×10 with a golem: ₲1 × 10 levels per 0.6 s cycle, nothing else boosting it yet. Offline pays 50%:
-    // an hour away is 1,800 s of work = 3,000 cycles = ₲30,000
+    // 10 Panners: 5 gold each per second, nothing else boosting them yet. Offline pays 50%: an hour away is
+    // 1,800 s of work × 50 gold = ₲90,000
     const page = await open(
       ctx,
       ([H]) => {
-        const s = { cash: 0, level: [10], golems: [1], running: [1], savedAt: Date.now() - H };
-        localStorage.setItem('df_capitalist', JSON.stringify(s));
-        localStorage.setItem('df_settings', JSON.stringify({ mode: 'capitalist' }));
+        const s = { res: [0, 0, 0, 0, 0, 0], units: [[10]], savedAt: Date.now() - H };
+        localStorage.setItem('df_communist', JSON.stringify(s));
+        localStorage.setItem('df_settings', JSON.stringify({ mode: 'communist' }));
       },
       [HOUR],
     );
     const f = [];
-    const cash = await page.evaluate(() => MODES.capitalist.state.cash);
-    if (!(cash >= 30000 && cash <= 30100)) f.push(`an hour away paid ₲${cash}, expected about ₲30,000`);
+    const gold = await page.evaluate(() => MODES.communist.state.res[0]);
+    if (!(gold >= 90000 && gold <= 90300)) f.push(`an hour away paid ₲${gold}, expected about ₲90,000`);
     await page.evaluate(() => saveNow());
     await page.reload();
-    const again = await page.evaluate(() => MODES.capitalist.state.cash);
-    if (again - cash > 100) f.push(`reloading paid the same time again: +₲${again - cash}`);
+    const again = await page.evaluate(() => MODES.communist.state.res[0]);
+    if (again - gold > 300) f.push(`reloading paid the same time again: +₲${again - gold}`);
     return f.concat(page.errors);
   },
   'a clock turned back pays nothing and never rewinds the save time': async (ctx) => {
     const page = await open(
       ctx,
       ([H]) => {
-        const s = { cash: 0, level: [10], golems: [1], running: [1], savedAt: Date.now() + H };
-        localStorage.setItem('df_capitalist', JSON.stringify(s));
-        localStorage.setItem('df_settings', JSON.stringify({ mode: 'capitalist' }));
+        const s = { res: [0, 0, 0, 0, 0, 0], units: [[10]], savedAt: Date.now() + H };
+        localStorage.setItem('df_communist', JSON.stringify(s));
+        localStorage.setItem('df_settings', JSON.stringify({ mode: 'communist' }));
       },
       [HOUR],
     );
     const r = await page.evaluate(() => {
       saveNow();
-      return [MODES.capitalist.state.cash, JSON.parse(localStorage.getItem('df_capitalist')).savedAt - Date.now()];
+      return [MODES.communist.state.res[0], JSON.parse(localStorage.getItem('df_communist')).savedAt - Date.now()];
     });
     const f = [];
     if (r[0] !== 0) f.push(`paid ₲${r[0]} for negative time away`);
@@ -339,7 +241,7 @@ const PAGE_TESTS = {
       APP_ACTIONS.importSave();
       return { keys: Object.keys(data.modes).sort().join(), taps: data.modes.communist.taps, kept: localStorage.getItem('df_communist') === before, msg: $('sv').placeholder };
     });
-    if (r.keys !== 'capitalist,communist,industrialist') f.push('save code is missing a mode: ' + r.keys);
+    if (r.keys !== 'communist,industrialist') f.push('save code is missing a mode: ' + r.keys);
     if (r.taps !== 77) f.push('save code does not hold current state');
     if (!r.kept) f.push('a junk code changed a save');
     if (!/isn't a Deepforge save/.test(r.msg)) f.push('no message for a junk code');
